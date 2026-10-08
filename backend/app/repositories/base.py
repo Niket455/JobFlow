@@ -10,3 +10,7 @@ class BaseRepository:
 
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    def commit(self) -> None:
+        """Commit the shared session (services own multi-repository transactions)."""
+        self.db.commit()

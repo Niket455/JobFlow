@@ -25,5 +25,15 @@ services:
       timeout: 5s
       retries: 10
 
+  # S3-compatible object storage for local dev (adobe/s3mock; MinIO images are
+  # no longer published on Docker Hub / Quay). The app talks S3 via boto3 either way.
+  s3mock:
+    image: adobe/s3mock:latest
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: careerpilot
+    ports:
+      - "9090:9090"
+      - "9191:9191"
+
 volumes:
   db_data:

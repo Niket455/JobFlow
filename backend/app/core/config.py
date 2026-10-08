@@ -27,6 +27,38 @@ class Settings(BaseSettings):
     # Fernet master key wrapping each user's data key (dev default; override in prod).
     master_key: str = "E4vHUnDMy5_jzV639cZBKAJuCoxLLH1XVMjKS8wfC1s="
 
+    # S3-compatible object storage (adobe/s3mock locally).
+    s3_endpoint_url: str = "http://localhost:9090"
+    s3_access_key: str = "minioadmin"
+    s3_secret_key: str = "minioadmin"
+    s3_bucket: str = "careerpilot"
+    s3_region: str = "us-east-1"
+
+    max_upload_mb: int = 10
+
+    # Outbound fetch (user-URL job ingestion).
+    user_agent: str = "CareerPilotBot/0.1 (+https://careerpilot.local)"
+    fetch_timeout_seconds: float = 15.0
+    robots_cache_ttl_seconds: int = 3600
+    enable_user_url_ingestion: bool = True
+
+    # Job lifecycle re-checks (Celery beat).
+    job_recheck_hours: int = 24
+    job_recheck_interval_minutes: int = 60
+    recheck_batch_size: int = 100
+    celery_task_always_eager: bool = False
+
+    # Email notifications. Default provider only logs — nothing leaves the box unless SMTP is set.
+    email_provider: str = "console"
+    email_enabled: bool = True
+    email_from: str = "no-reply@careerpilot.local"
+    smtp_host: str = "localhost"
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    smtp_timeout_seconds: float = 15.0
+
     llm_provider: str = "openai"
     llm_default_model: str = "gpt-4o-mini"
     llm_cheap_model: str = "gpt-4o-mini"
