@@ -4,14 +4,15 @@ Full-lifecycle job-search platform (human-in-the-loop; not an auto-apply bot).
 
 See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 
-> Current status: **increments 0 → 7.2** plus the **Greenhouse/Lever/Ashby ATS source adapters** —
+> Current status: **increments 0 → 8.1** plus the **Greenhouse/Lever/Ashby ATS source adapters** —
 > auth, profile/career goal/deal-breakers, resume upload/parse/versioning + ATS-safe export,
 > Greenhouse/Lever/Ashby + user-URL job ingestion with dedupe, lifecycle expiry re-checks, LLM job
 > analysis, deterministic match scoring, an event-sourced application tracker, an email notification
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded versioned cover
 > letters, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric feedback
-> + a STAR bank, skill-gap demand analysis + a daily plan, scheduled (idempotent digest) alerts, and
-> application analytics & rejection intelligence. Frontend and browser extension are not started.
+> + a STAR bank, skill-gap demand analysis + a daily plan, a contacts CRM + grounded
+> outreach/referral drafts, scheduled (idempotent digest) alerts, and application analytics &
+> rejection intelligence. Frontend and browser extension are not started.
 > See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
@@ -55,7 +56,7 @@ Interactive API docs: http://localhost:8000/docs
 
 ```bash
 cd backend
-alembic upgrade head        # apply migrations 0001..0012
+alembic upgrade head        # apply migrations 0001..0013
 alembic revision --autogenerate -m "your change"
 ```
 
@@ -94,6 +95,9 @@ mypy app                     # type check
   `POST/GET /api/v1/star-stories` · `GET/PUT/DELETE /api/v1/star-stories/{id}` ·
   `POST /api/v1/star-stories/draft`
 - Insights: `GET /api/v1/skill-gap` · `GET /api/v1/daily-plan`
+- CRM: `POST/GET /api/v1/contacts` · `GET/PUT/DELETE /api/v1/contacts/{id}` ·
+  `POST/GET /api/v1/outreach-drafts` · `GET /api/v1/outreach-drafts/{id}` ·
+  `POST /api/v1/outreach-drafts/{id}/send`
 - Alerts: `POST/GET /api/v1/alerts` · `GET/PUT/DELETE /api/v1/alerts/{id}` ·
   `POST /api/v1/alerts/{id}/preview` · `POST /api/v1/alerts/{id}/run` ·
   `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`
