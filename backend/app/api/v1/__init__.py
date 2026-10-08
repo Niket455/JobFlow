@@ -8,6 +8,7 @@ from app.api.v1 import (
     career_goals,
     cover_letters,
     deal_breakers,
+    insights,
     interview_kits,
     jobs,
     matches,
@@ -35,4 +36,5 @@ api_router.include_router(cover_letters.router)
 api_router.include_router(interview_kits.router)
 api_router.include_router(practice.router)
 api_router.include_router(star_stories.router)
+api_router.include_router(insights.router)
 api_router.include_router(analytics.router)

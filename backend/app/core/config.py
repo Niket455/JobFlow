@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     # Analytics: minimum segment size before a rate is reported (below it, value is null).
     analytics_min_sample: int = 5
 
+    # Insights: daily-plan / skill-gap thresholds.
+    strong_match_threshold: float = 8.0
+    daily_plan_follow_up_days: int = 7
+    daily_plan_max_items: int = 12
+
     # Email notifications. Default provider only logs — nothing leaves the box unless SMTP is set.
     email_provider: str = "console"
     email_enabled: bool = True

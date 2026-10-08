@@ -11,6 +11,12 @@ class JobAnalysisRepository(BaseRepository):
     def get_for_job(self, job_id: uuid.UUID) -> JobAnalysis | None:
         return self.db.scalar(select(JobAnalysis).where(JobAnalysis.job_id == job_id))
 
+    def get_for_jobs(self, job_ids: set[uuid.UUID]) -> dict[uuid.UUID, JobAnalysis]:
+        if not job_ids:
+            return {}
+        rows = self.db.scalars(select(JobAnalysis).where(JobAnalysis.job_id.in_(job_ids)))
+        return {row.job_id: row for row in rows}
+
     def upsert(self, job_id: uuid.UUID, data: dict[str, Any]) -> JobAnalysis:
         record = self.get_for_job(job_id)
         if record is None:
