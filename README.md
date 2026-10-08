@@ -4,8 +4,11 @@ Full-lifecycle job-search platform (human-in-the-loop; not an auto-apply bot).
 
 See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 
-> Current status: **Increment 0 — backend skeleton only.** A bootable FastAPI app plus local
-> Postgres (pgvector) and Redis via docker-compose. No models, auth, adapters, or frontend yet.
+> Current status: **increments 0 → 4.2** — auth, profile/career goal/deal-breakers, resume
+> upload/parse/versioning + ATS-safe export, user-URL job ingestion with dedupe, lifecycle expiry
+> re-checks, LLM job analysis, deterministic match scoring, an event-sourced application tracker,
+> and an email notification layer. Frontend and browser extension are not started.
+> See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
 
@@ -48,7 +51,7 @@ Interactive API docs: http://localhost:8000/docs
 
 ```bash
 cd backend
-alembic upgrade head        # apply migrations (creates users, llm_usage)
+alembic upgrade head        # apply migrations 0001..0008
 alembic revision --autogenerate -m "your change"
 ```
 
@@ -64,11 +67,19 @@ ruff format --check .        # formatting
 mypy app                     # type check
 ```
 
-## Phase 0 endpoints
+## Endpoints (v1)
 
-- `GET /health` — liveness
-- `GET /ready` — readiness (checks Postgres + Redis)
-- `POST /api/v1/auth/register` · `/login` · `/refresh` · `GET /api/v1/auth/me`
+- System: `GET /health` · `GET /ready`
+- Auth: `POST /api/v1/auth/register` · `/login` · `/refresh` · `GET /api/v1/auth/me`
+- Profile: `GET/PUT /api/v1/profile` · `/career-goals` · `/deal-breakers`
+- Resumes: `POST /api/v1/resumes` · `GET /api/v1/resumes` · `GET /api/v1/resumes/{id}` ·
+  `GET /api/v1/resumes/{id}/export?format=pdf|docx`
+- Jobs: `POST /api/v1/jobs` (paste a URL) · `GET /api/v1/jobs` · `GET /api/v1/jobs/{id}` ·
+  `/sources` · `POST /{id}/refresh` · `POST /{id}/analyze` · `GET /{id}/analysis` · `POST /{id}/match`
+- Matches: `GET /api/v1/matches` · `GET /api/v1/matches/{id}` · `POST /api/v1/matches/recompute`
+- Applications: `POST /api/v1/applications` · `GET /api/v1/applications` ·
+  `GET /api/v1/applications/{id}` · `POST/GET /api/v1/applications/{id}/events`
+- Notifications: `POST /api/v1/notifications/test`
 
 ## LLM gateway
 
