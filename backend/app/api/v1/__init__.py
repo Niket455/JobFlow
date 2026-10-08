@@ -6,6 +6,7 @@ from app.api.v1 import (
     applications,
     auth,
     career_goals,
+    contacts,
     cover_letters,
     deal_breakers,
     insights,
@@ -13,6 +14,7 @@ from app.api.v1 import (
     jobs,
     matches,
     notifications,
+    outreach_drafts,
     practice,
     profile,
     resumes,
@@ -37,4 +39,6 @@ api_router.include_router(interview_kits.router)
 api_router.include_router(practice.router)
 api_router.include_router(star_stories.router)
 api_router.include_router(insights.router)
+api_router.include_router(contacts.router)
+api_router.include_router(outreach_drafts.router)
 api_router.include_router(analytics.router)
