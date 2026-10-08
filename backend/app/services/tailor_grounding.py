@@ -11,7 +11,8 @@ class AppliedChange:
     new_text: str
 
 
-def _normalize(text: str) -> str:
+def normalize(text: str) -> str:
+    """Lowercase, drop punctuation, and collapse whitespace — the shared match normalizer."""
     lowered = re.sub(r"[^a-z0-9]+", " ", text.lower())
     return re.sub(r"\s+", " ", lowered).strip()
 
@@ -20,10 +21,10 @@ def is_grounded(source_span: str | None, corpus: str) -> bool:
     """True when the cited span appears (normalised) in the grounding corpus."""
     if not source_span:
         return False
-    span = _normalize(source_span)
+    span = normalize(source_span)
     if len(span) < MIN_SPAN_LENGTH:
         return False
-    return span in _normalize(corpus)
+    return span in normalize(corpus)
 
 
 def _resolve(profile: dict[str, Any], path: str) -> tuple[bool, Any]:

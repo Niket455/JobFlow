@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.adapters.base import Fetcher
-from app.adapters.user_url import build_fetcher
+from app.adapters.factory import build_fetcher
 from app.core.db import get_db
 from app.core.security import decode_token
 from app.core.storage import ObjectStorage, build_storage

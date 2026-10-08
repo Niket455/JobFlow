@@ -2,7 +2,6 @@ import httpx
 
 from app.adapters.base import FetchError, FetchResult, RobotsDisallowedError
 from app.adapters.robots import RobotsCache
-from app.core.config import settings
 
 
 class HttpxFetcher:
@@ -28,13 +27,3 @@ class HttpxFetcher:
             text=response.text,
             headers={key.lower(): value for key, value in response.headers.items()},
         )
-
-
-def build_fetcher() -> HttpxFetcher:
-    client = httpx.Client(
-        timeout=settings.fetch_timeout_seconds,
-        follow_redirects=True,
-        headers={"User-Agent": settings.user_agent},
-    )
-    robots = RobotsCache(client, ttl_seconds=settings.robots_cache_ttl_seconds)
-    return HttpxFetcher(client=client, user_agent=settings.user_agent, robots=robots)

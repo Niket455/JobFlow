@@ -16,7 +16,7 @@ from app.services.dedupe import content_hash, normalized_company_name
 from app.services.job_normalizer import normalize
 from app.services.url_canonicalizer import canonicalize
 
-ADAPTER = "user_url"
+DEFAULT_ADAPTER = "user_url"
 
 
 class JobIngestionService:
@@ -41,7 +41,7 @@ class JobIngestionService:
             result = self.fetcher.fetch(url)
         except (FetchError, RobotsDisallowedError) as exc:
             self.fetch_logs.create(
-                adapter=ADAPTER,
+                adapter=DEFAULT_ADAPTER,
                 url=url,
                 user_id=user.id,
                 status_code=None,
@@ -87,7 +87,7 @@ class JobIngestionService:
             self.sources.create(
                 job_id=job.id,
                 added_by_user_id=user.id,
-                adapter=ADAPTER,
+                adapter=result.adapter,
                 url=url,
                 canonical_url=final_url,
                 external_id=normalized.external_id,
@@ -99,7 +99,7 @@ class JobIngestionService:
             )
 
         self.fetch_logs.create(
-            adapter=ADAPTER,
+            adapter=result.adapter,
             url=url,
             user_id=user.id,
             status_code=result.status_code,

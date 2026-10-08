@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from app.adapters.user_url import build_fetcher
+from app.adapters.factory import build_fetcher
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.email.factory import build_email_sender

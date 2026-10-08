@@ -6,10 +6,15 @@ from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile,
 from app.api.deps import CurrentUser, DbSession, GatewayDep, StorageDep
 from app.core.config import settings
 from app.core.media_types import DOCX_CONTENT_TYPE, PDF_CONTENT_TYPE
+from app.repositories.job_analysis_repository import JobAnalysisRepository
+from app.repositories.job_source_repository import JobSourceRepository
 from app.repositories.resume_repository import ResumeVersionRepository
 from app.repositories.user_repository import UserRepository
+from app.schemas.ats import AtsReport
+from app.schemas.job_analysis import JobAnalysisData
 from app.schemas.resume import ResumeVersionRead, ResumeVersionSummary
 from app.schemas.tailor import TailorRequest, TailorRunRead
+from app.services.ats_analyzer import analyze_ats
 from app.services.job_service import JobNotFoundError
 from app.services.resume_parser import UnsupportedFileTypeError
 from app.services.resume_service import ResumeFormat, ResumeNotFoundError, ResumeService
@@ -129,3 +134,31 @@ async def tailor_resume(
         ) from exc
     except JobNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from exc
+
+
+@router.get("/{resume_id}/ats-report", response_model=AtsReport)
+def resume_ats_report(
+    resume_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    storage: StorageDep,
+    gateway: GatewayDep,
+    job_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> AtsReport:
+    try:
+        version = _service(db, storage, gateway).get(current_user, resume_id)
+    except ResumeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume version not found"
+        ) from exc
+    if version.parsed is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume version not found"
+        )
+    analysis = None
+    if job_id is not None:
+        if not JobSourceRepository(db).exists(job_id, current_user.id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+        record = JobAnalysisRepository(db).get_for_job(job_id)
+        analysis = JobAnalysisData.model_validate(record.data) if record is not None else None
+    return analyze_ats(version.parsed, analysis)

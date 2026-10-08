@@ -1,5 +1,7 @@
 import json
 
+import httpx
+
 from app.adapters.base import FetchError, FetchResult, RobotsDisallowedError
 
 DE_URL = "https://jobs.example.com/data-engineer"
@@ -71,3 +73,63 @@ class FakeFetcher:
         if text is None:
             raise FetchError(url, "not found", status_code=404)
         return FetchResult(url=url, status_code=200, text=text)
+
+
+# --- ATS public-API fixtures (Greenhouse / Lever / Ashby) --------------------------------
+
+GH_URL = "https://boards.greenhouse.io/vaulttec/jobs/127817"
+GH_API = "https://boards-api.greenhouse.io/v1/boards/vaulttec/jobs/127817"
+GH_JSON = {
+    "id": 127817,
+    "title": "Vault Designer",
+    "company_name": "Vault Tec",
+    "location": {"name": "NYC"},
+    "content": "&amp;lt;p&amp;gt;Design vaults.&amp;lt;/p&amp;gt;",
+    "absolute_url": GH_URL,
+    "application_deadline": "2030-01-01T00:00:00Z",
+}
+
+LEVER_URL = "https://jobs.lever.co/leverdemo/5ac21346-8e0c-4494-8e7a-3eb92ff77902"
+LEVER_API = (
+    "https://api.lever.co/v0/postings/leverdemo/5ac21346-8e0c-4494-8e7a-3eb92ff77902?mode=json"
+)
+LEVER_JSON = {
+    "id": "5ac21346-8e0c-4494-8e7a-3eb92ff77902",
+    "text": "Backend Engineer",
+    "categories": {"location": "Bengaluru", "team": "Engineering"},
+    "descriptionPlain": "Build services.",
+    "hostedUrl": LEVER_URL,
+}
+
+ASHBY_URL = "https://jobs.ashbyhq.com/acme/abc-123"
+ASHBY_API = "https://api.ashbyhq.com/posting-api/job-board/acme"
+ASHBY_JSON = {
+    "apiVersion": "1",
+    "jobs": [
+        {
+            "title": "Product Manager",
+            "location": "Houston, TX",
+            "descriptionPlain": "Own the roadmap.",
+            "jobUrl": "https://jobs.ashbyhq.com/acme/abc-123",
+        },
+        {
+            "title": "Designer",
+            "location": "NYC",
+            "descriptionPlain": "Design things.",
+            "jobUrl": "https://jobs.ashbyhq.com/acme/xyz-999",
+        },
+    ],
+}
+
+ATS_RESPONSES: dict[str, dict] = {GH_API: GH_JSON, LEVER_API: LEVER_JSON, ASHBY_API: ASHBY_JSON}
+
+
+def ats_handler(request: httpx.Request) -> httpx.Response:
+    data = ATS_RESPONSES.get(str(request.url))
+    if data is None:
+        return httpx.Response(404, json={"error": "not found"})
+    return httpx.Response(200, json=data)
+
+
+def ats_client() -> httpx.Client:
+    return httpx.Client(transport=httpx.MockTransport(ats_handler))

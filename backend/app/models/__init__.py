@@ -4,6 +4,7 @@ from app.models.application import Application
 from app.models.application_event import ApplicationEvent
 from app.models.career_goal import CareerGoal
 from app.models.company import Company
+from app.models.cover_letter import CoverLetter
 from app.models.deal_breakers import DealBreakers
 from app.models.fetch_log import FetchLog
 from app.models.job import Job
@@ -23,6 +24,7 @@ __all__ = [
     "ApplicationEvent",
     "CareerGoal",
     "Company",
+    "CoverLetter",
     "DealBreakers",
     "FetchLog",
     "Job",

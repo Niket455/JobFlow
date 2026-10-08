@@ -1,4 +1,3 @@
-import json
 import uuid
 from typing import Any
 
@@ -11,8 +10,6 @@ from app.core.prompts import load_prompt
 from app.core.storage import ObjectStorage
 from app.gateway.base import LLMMessage
 from app.gateway.gateway import LLMGateway
-from app.models.job import Job
-from app.models.job_analysis import JobAnalysis
 from app.models.tailor_run import TailorRun
 from app.models.user import User
 from app.repositories.job_analysis_repository import JobAnalysisRepository
@@ -32,6 +29,7 @@ from app.schemas.tailor import (
     TailorRunRead,
 )
 from app.services.encryption import ensure_data_key
+from app.services.job_context import job_text
 from app.services.job_service import JobNotFoundError
 from app.services.resume_renderer import build_lines, render_docx
 from app.services.resume_service import ResumeNotFoundError, ResumeService
@@ -100,7 +98,7 @@ class TailorService:
         prompt = load_prompt("tailor_resume").format(
             resume_json=base_profile.model_dump_json(),
             resume_text=base_text or base_profile.model_dump_json(),
-            job_text=_job_text(job, analysis),
+            job_text=job_text(job, analysis),
         )
         proposal = await self.gateway.complete_structured(
             [LLMMessage(role="user", content=prompt)], model=self.model, schema=TailorProposal
@@ -210,17 +208,6 @@ def _change(base_dump: dict[str, Any], proposed: ProposedChange, corpus: str) ->
         grounded=grounded,
         decision="approved" if grounded else "rejected",
     )
-
-
-def _job_text(job: Job, analysis: JobAnalysis | None) -> str:
-    parts = [f"Title: {job.title}"]
-    if job.location:
-        parts.append(f"Location: {job.location}")
-    if analysis is not None:
-        parts.append(f"Extracted: {json.dumps(analysis.data)}")
-    if job.description:
-        parts.append(job.description)
-    return "\n".join(parts)
 
 
 def _plain_text(profile: ProfileData) -> str:

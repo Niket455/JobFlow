@@ -4,12 +4,12 @@ from datetime import UTC, datetime, timedelta
 from app.adapters.base import Fetcher, FetchError, RobotsDisallowedError
 from app.core.config import settings
 from app.models.job import Job
+from app.models.job_source import JobSource
 from app.models.user import User
 from app.repositories.fetch_log_repository import FetchLogRepository
 from app.repositories.job_repository import JobRepository
 from app.repositories.job_source_repository import JobSourceRepository
 
-ADAPTER = "user_url"
 EXPIRED_STATUS_CODES = {404, 410}
 
 
@@ -56,21 +56,23 @@ class JobRefreshService:
         try:
             result = self.fetcher.fetch(source.url)
         except RobotsDisallowedError as exc:
-            self._log(source.url, status_code=None, ok=False, error=str(exc))
+            self._log(source, status_code=None, ok=False, error=str(exc))
         except FetchError as exc:
-            self._log(source.url, status_code=exc.status_code, ok=False, error=str(exc))
+            self._log(source, status_code=exc.status_code, ok=False, error=str(exc))
             job.status = "Expired" if exc.status_code in EXPIRED_STATUS_CODES else "Unknown"
         else:
-            self._log(source.url, status_code=result.status_code, ok=True, error=None)
+            self._log(source, status_code=result.status_code, ok=True, error=None)
             job.status = "Active"
             job.last_seen_at = now
             source.last_seen_at = now
         self.jobs.commit()
 
-    def _log(self, url: str, *, status_code: int | None, ok: bool, error: str | None) -> None:
+    def _log(
+        self, source: JobSource, *, status_code: int | None, ok: bool, error: str | None
+    ) -> None:
         self.fetch_logs.create(
-            adapter=ADAPTER,
-            url=url,
+            adapter=source.adapter,
+            url=source.url,
             user_id=None,
             status_code=status_code,
             ok=ok,

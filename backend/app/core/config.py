@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     fetch_timeout_seconds: float = 15.0
     robots_cache_ttl_seconds: int = 3600
     enable_user_url_ingestion: bool = True
+    # Greenhouse/Lever/Ashby public-API adapters, selected from the pasted URL.
+    enable_ats_ingestion: bool = True
 
     # Job lifecycle re-checks (Celery beat).
     job_recheck_hours: int = 24
