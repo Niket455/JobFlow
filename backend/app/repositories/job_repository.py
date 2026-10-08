@@ -13,6 +13,12 @@ class JobRepository(BaseRepository):
     def get(self, job_id: uuid.UUID) -> Job | None:
         return self.db.get(Job, job_id)
 
+    def get_many(self, ids: set[uuid.UUID]) -> dict[uuid.UUID, Job]:
+        if not ids:
+            return {}
+        rows = self.db.scalars(select(Job).where(Job.id.in_(ids)))
+        return {job.id: job for job in rows}
+
     def find_by_content_hash(self, content_hash: str) -> Job | None:
         return self.db.scalars(
             select(Job).where(Job.content_hash == content_hash).order_by(Job.created_at).limit(1)

@@ -36,11 +36,13 @@ class ResumeVersionRepository(BaseRepository):
         text_enc: str,
         parsed_enc: str,
         confidence: dict[str, float] | None,
+        parent_version_id: uuid.UUID | None = None,
     ) -> ResumeVersion:
         record = ResumeVersion(
             user_id=user_id,
             label=label,
             is_master=is_master,
+            parent_version_id=parent_version_id,
             filename=filename,
             content_type=content_type,
             storage_key=storage_key,

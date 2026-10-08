@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     recheck_batch_size: int = 100
     celery_task_always_eager: bool = False
 
+    # Scheduled alerts (Celery beat).
+    alert_run_interval_minutes: int = 15
+    alerts_batch_size: int = 100
+
+    # Analytics: minimum segment size before a rate is reported (below it, value is null).
+    analytics_min_sample: int = 5
+
     # Email notifications. Default provider only logs — nothing leaves the box unless SMTP is set.
     email_provider: str = "console"
     email_enabled: bool = True

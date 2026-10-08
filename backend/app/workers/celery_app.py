@@ -17,5 +17,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.recheck_jobs",
             "schedule": settings.job_recheck_interval_minutes * 60,
         },
+        "run-alerts": {
+            "task": "app.workers.tasks.run_alerts",
+            "schedule": settings.alert_run_interval_minutes * 60,
+        },
     },
 )

@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    alerts,
+    analytics,
     applications,
     auth,
     career_goals,
@@ -10,6 +12,7 @@ from app.api.v1 import (
     notifications,
     profile,
     resumes,
+    tailor_runs,
 )
 
 api_router = APIRouter()
@@ -22,3 +25,6 @@ api_router.include_router(jobs.router)
 api_router.include_router(matches.router)
 api_router.include_router(applications.router)
 api_router.include_router(notifications.router)
+api_router.include_router(alerts.router)
+api_router.include_router(tailor_runs.router)
+api_router.include_router(analytics.router)

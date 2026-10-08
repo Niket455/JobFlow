@@ -31,6 +31,9 @@ class ApplicationRepository(BaseRepository):
             )
         )
 
+    def list_all_for_user(self, user_id: uuid.UUID) -> list[Application]:
+        return list(self.db.scalars(select(Application).where(Application.user_id == user_id)))
+
     def create(self, **fields: Any) -> Application:
         application = Application(**fields)
         self.db.add(application)

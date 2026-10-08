@@ -9,8 +9,11 @@ from app.core.media_types import DOCX_CONTENT_TYPE, PDF_CONTENT_TYPE
 from app.repositories.resume_repository import ResumeVersionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.resume import ResumeVersionRead, ResumeVersionSummary
+from app.schemas.tailor import TailorRequest, TailorRunRead
+from app.services.job_service import JobNotFoundError
 from app.services.resume_parser import UnsupportedFileTypeError
 from app.services.resume_service import ResumeFormat, ResumeNotFoundError, ResumeService
+from app.services.tailor_service import build_tailor_service
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
@@ -103,3 +106,26 @@ def export_resume(
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post(
+    "/{resume_id}/tailor", response_model=TailorRunRead, status_code=status.HTTP_201_CREATED
+)
+async def tailor_resume(
+    resume_id: uuid.UUID,
+    payload: TailorRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+    storage: StorageDep,
+    gateway: GatewayDep,
+) -> TailorRunRead:
+    try:
+        return await build_tailor_service(db, storage, gateway).tailor(
+            current_user, resume_id, payload
+        )
+    except ResumeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume version not found"
+        ) from exc
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from exc

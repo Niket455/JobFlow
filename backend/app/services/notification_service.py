@@ -13,16 +13,17 @@ class NotificationService:
     def __init__(self, sender: EmailSender) -> None:
         self.sender = sender
 
-    def send_test_email(self, user: User) -> EmailMessage:
+    def send(self, user: User, subject: str, text: str) -> EmailMessage:
         if not settings.email_enabled:
             raise EmailDisabledError
-        message = EmailMessage(
-            to=user.email,
-            subject="CareerPilot test email",
-            text=(
-                "This is a test email from CareerPilot. "
-                "If you received it, email notifications are configured correctly."
-            ),
-        )
+        message = EmailMessage(to=user.email, subject=subject, text=text)
         self.sender.send(message)
         return message
+
+    def send_test_email(self, user: User) -> EmailMessage:
+        return self.send(
+            user,
+            "CareerPilot test email",
+            "This is a test email from CareerPilot. "
+            "If you received it, email notifications are configured correctly.",
+        )
