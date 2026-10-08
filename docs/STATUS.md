@@ -1,8 +1,8 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 6.2 (application analytics & rejection intelligence)**. Committed
-> checkpoints: Phase 0 + 1.1, and increments 1.2 → 4.2. This checkpoint lands increments
-> 5.1 → 6.2 (resume tailoring with fact-grounding, scheduled alerts, analytics).
+> Saved: end of **increment 5.2 (cover letters + ATS analyzer)** and the **Greenhouse/Lever/Ashby
+> ATS source adapters**. Committed checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, and increments
+> 5.1 → 6.2. This checkpoint adds the ATS adapters and Phase 5.2.
 
 ## Where we are
 
@@ -16,13 +16,14 @@
 | Phase 2.1 — User-URL job ingestion, dedupe, fetch log | ✅ complete |
 | Phase 2.2 — Job lifecycle expiry re-check (Celery) | ✅ complete |
 | Phase 2.3 — LLM job analysis | ✅ complete |
+| Phase 2.4 — Greenhouse/Lever/Ashby ATS source adapters | ✅ complete |
 | Phase 3.1 — Deterministic match scoring | ✅ complete |
 | Phase 4.1 — Application tracker (event-sourced) | ✅ complete |
 | Phase 4.2 — Email notifications (transport) | ✅ complete |
 | Phase 5.1 — Resume tailoring (fact-grounding + diff/apply) | ✅ complete |
 | Phase 6.1 — Scheduled alerts (idempotent digest email) | ✅ complete |
 | Phase 6.2 — Application analytics & rejection intelligence | ✅ complete |
-| Phase 5.2 — ATS analyzer (/100 + parse test), cover letters | ⏸️ not started (next) |
+| Phase 5.2 — ATS analyzer (/100 + parse test), cover letters | ✅ complete |
 | Phase 6.3 — Follow-ups, notification center, interview prep, skill-gap plan | ⏸️ not started |
 | Email/calendar sync (Gmail) | ⏸️ deferred |
 | Semantic matching (embeddings / pgvector) | ⏸️ deferred |
@@ -35,25 +36,28 @@ backend/app/
 ├── core/            config, db, logging, middleware, security, crypto, storage, prompts, media_types
 ├── models/          User, Profile, CareerGoal, DealBreakers, ResumeVersion, LLMUsage,
 │                    Company, Job, JobSource, FetchLog, JobAnalysis, Match,
-│                    Application, ApplicationEvent, Alert, AlertRun, TailorRun
+│                    Application, ApplicationEvent, Alert, AlertRun, TailorRun, CoverLetter
 ├── schemas/         auth, profile, career_goal, deal_breakers, resume, job, job_analysis,
-│                    match, application, notification, alert, tailor, analytics
+│                    match, application, notification, alert, tailor, analytics,
+│                    cover_letter, ats
 ├── repositories/    tenancy-scoped repos for every model above
 ├── services/        auth, profile, career_goal, deal_breakers, resume_parser, resume_renderer,
 │                    resume, url_canonicalizer, job_normalizer, dedupe, job_ingestion,
-│                    job_service, job_refresh, job_analysis, match_scoring, match,
+│                    job_service, job_refresh, job_analysis, job_context, match_scoring, match,
 │                    application_status, application, notification, encryption,
 │                    alert_schedule, alert, tailor_grounding, tailor,
-│                    application_analytics, analytics
-├── adapters/        base (Fetcher), robots (RobotsCache), user_url (HttpxFetcher, build_fetcher)
+│                    application_analytics, analytics, ats_analyzer, cover_letter
+├── adapters/        base (Fetcher/Adapter), robots (RobotsCache), user_url (HttpxFetcher),
+│                    greenhouse, lever, ashby, jsonld, mapping, http_json,
+│                    dispatch (DispatchFetcher), factory (build_fetcher)
 ├── gateway/         LLM gateway (providers: mock, openai) — complete + structured output
 ├── email/           base (EmailSender), console, recording, smtp, factory
-├── prompts/         resume_parse, job_analysis, tailor_resume (versioned prompt files)
+├── prompts/         resume_extraction, job_analysis, tailor_resume, cover_letter (versioned)
 ├── workers/         celery_app + tasks (recheck_jobs, run_alerts)
 └── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, matches,
-                     applications, notifications, alerts, tailor-runs, analytics
-backend/alembic/versions/  0001_initial … 0010_tailor_runs
-backend/tests/             143 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+                     applications, notifications, alerts, tailor-runs, cover-letters, analytics
+backend/alembic/versions/  0001_initial … 0011_cover_letters
+backend/tests/             171 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -64,11 +68,12 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 |---|---|
 | Auth | `POST /auth/register` · `/login` · `/refresh` · `GET /auth/me` |
 | Profile | `GET/PUT /profile`, `GET/PUT /career-goals`, `GET/PUT /deal-breakers` |
-| Resumes | `POST /resumes` (upload) · `GET /resumes` · `GET /resumes/{id}` · `GET /resumes/{id}/export?format=pdf\|docx` · `POST /resumes/{id}/tailor` |
-| Jobs | `POST /jobs` (paste URL) · `GET /jobs` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
+| Resumes | `POST /resumes` (upload) · `GET /resumes` · `GET /resumes/{id}` · `GET /resumes/{id}/export?format=pdf\|docx` · `POST /resumes/{id}/tailor` · `GET /resumes/{id}/ats-report?job_id=` |
+| Jobs | `POST /jobs` (paste URL — Greenhouse/Lever/Ashby URLs use their public APIs) · `GET /jobs` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
 | Matches | `GET /matches` · `GET /matches/{id}` · `POST /matches/recompute` |
 | Applications | `POST /applications` · `GET /applications` · `GET /applications/{id}` · `POST /applications/{id}/events` · `GET /applications/{id}/events` |
 | Tailoring | `GET /tailor-runs/{id}` · `POST /tailor-runs/{id}/decisions` · `POST /tailor-runs/{id}/apply` |
+| Cover letters | `POST /cover-letters` (generate) · `GET /cover-letters` · `GET /cover-letters/{id}` |
 | Alerts | `POST /alerts` · `GET /alerts` · `GET /alerts/{id}` · `PUT /alerts/{id}` · `DELETE /alerts/{id}` · `POST /alerts/{id}/preview` · `POST /alerts/{id}/run` · `GET /alerts/{id}/runs` · `POST /alerts/unsubscribe/{token}` |
 | Analytics | `GET /analytics/funnel` · `GET /analytics/rates` · `GET /analytics/rejections?by=source\|company\|role\|location\|resume_version\|month` |
 | Notifications | `POST /notifications/test` |
@@ -76,18 +81,18 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **143/143 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0010` apply cleanly to real Postgres (`alembic current` = `0010_tailor_runs`).
-- Live smoke against real Postgres (`uvicorn`, real DB) for the new surface:
-  - `GET /analytics/funnel|rates|rejections` → funnel stages; rates carry
-    `value=null`/`sufficient_sample=false` under min-N; rejection buckets per dimension;
-  - alerts CRUD → `next_run_at` = now + frequency; `POST /alerts/{id}/run` records a `skipped` run
-    when there are no eligible matches; `POST /alerts/unsubscribe/{token}` disables the alert.
-- Tailoring (deterministic grounding verifier + diff/decisions/apply) is covered by unit + API tests
-  (fake gateway); not part of the live smoke (needs a PDF/DOCX base + an ingested job).
-- Earlier live E2E (increments 1.2–4.2): resume upload → parse → export; job ingest → dedupe;
-  refresh → `Expired`; analyze → persisted; match → `overall`/`sub_scores`/`scoring_version`;
-  application create → derived status; `POST /notifications/test` → `provider=console`.
+- **171/171 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0011` apply cleanly to real Postgres (`alembic current` = `0011_cover_letters`).
+- Live smoke against real Postgres (`uvicorn` with `LLM_PROVIDER=mock`, real DB + S3): resume upload →
+  `GET /resumes/{id}/ats-report` → `/100` report with parse-test block; `GET /cover-letters` lists.
+- ATS adapters: unit-tested per source with `httpx.MockTransport` (URL matching, JSON-LD mapping,
+  Greenhouse double-unescape, HTTP-error fallback) plus an E2E ingestion test asserting
+  `job_sources.adapter` = `greenhouse`/`lever`/`ashby`; a plain URL still files as `user_url`.
+- Cover-letter generation and tailoring grounding are covered by unit + API tests (mock gateway);
+  neither live smoke needed an ingested job (no outbound network).
+- Earlier live E2E (increments 1.2–6.2): resume upload → parse → export; job ingest → dedupe;
+  refresh → `Expired`; analyze → persisted; match `overall`/`sub_scores`/`scoring_version`;
+  application derived status; `POST /notifications/test`; analytics funnel/rates/rejections; alerts.
 
 ## How to resume
 
@@ -115,11 +120,10 @@ celery -A app.workers.celery_app.celery_app beat
 
 ## Next steps (agreed order)
 
-1. **Cover letters + ATS analyzer** — versioned, grounded cover letters; ATS report /100 + parse
-   test on the exported resume (Phase 5.2 remainder).
-2. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
-3. **Interview prep + feedback** — kits, practice answers + rubric feedback history, STAR bank.
-4. **Skill-gap + daily plan** — demand % / marginal coverage; an aggregate daily plan.
+1. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
+2. **Interview prep + feedback** — kits, practice answers + rubric feedback history, STAR bank.
+3. **Skill-gap + daily plan** — demand % / marginal coverage; an aggregate daily plan.
+4. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
 5. Deferred: Gmail/calendar sync; embeddings/pgvector semantic match sub-score; resume-specific
    matching; frontend & browser extension.
 
