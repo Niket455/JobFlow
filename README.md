@@ -4,13 +4,14 @@ Full-lifecycle job-search platform (human-in-the-loop; not an auto-apply bot).
 
 See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 
-> Current status: **increments 0 → 5.2** plus the **Greenhouse/Lever/Ashby ATS source adapters** —
+> Current status: **increments 0 → 7.1** plus the **Greenhouse/Lever/Ashby ATS source adapters** —
 > auth, profile/career goal/deal-breakers, resume upload/parse/versioning + ATS-safe export,
 > Greenhouse/Lever/Ashby + user-URL job ingestion with dedupe, lifecycle expiry re-checks, LLM job
 > analysis, deterministic match scoring, an event-sourced application tracker, an email notification
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded versioned cover
-> letters, a deterministic ATS analyzer (/100 + parse test), scheduled (idempotent digest) alerts,
-> and application analytics & rejection intelligence. Frontend and browser extension are not started.
+> letters, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric feedback
+> + a STAR bank, scheduled (idempotent digest) alerts, and application analytics & rejection
+> intelligence. Frontend and browser extension are not started.
 > See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
@@ -54,7 +55,7 @@ Interactive API docs: http://localhost:8000/docs
 
 ```bash
 cd backend
-alembic upgrade head        # apply migrations 0001..0011
+alembic upgrade head        # apply migrations 0001..0012
 alembic revision --autogenerate -m "your change"
 ```
 
@@ -88,6 +89,10 @@ mypy app                     # type check
   `POST /api/v1/tailor-runs/{id}/apply`
 - Cover letters: `POST /api/v1/cover-letters` · `GET /api/v1/cover-letters` ·
   `GET /api/v1/cover-letters/{id}`
+- Interview: `POST/GET /api/v1/interview-kits` · `GET /api/v1/interview-kits/{id}` ·
+  `POST/GET /api/v1/practice-sessions` · `GET /api/v1/practice-sessions/{id}` ·
+  `POST/GET /api/v1/star-stories` · `GET/PUT/DELETE /api/v1/star-stories/{id}` ·
+  `POST /api/v1/star-stories/draft`
 - Alerts: `POST/GET /api/v1/alerts` · `GET/PUT/DELETE /api/v1/alerts/{id}` ·
   `POST /api/v1/alerts/{id}/preview` · `POST /api/v1/alerts/{id}/run` ·
   `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`

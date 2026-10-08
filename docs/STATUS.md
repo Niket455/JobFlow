@@ -1,8 +1,8 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 5.2 (cover letters + ATS analyzer)** and the **Greenhouse/Lever/Ashby
-> ATS source adapters**. Committed checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, and increments
-> 5.1 → 6.2. This checkpoint adds the ATS adapters and Phase 5.2.
+> Saved: end of **increment 7.1 (interview prep & feedback)**. Committed checkpoints: Phase 0 + 1.1,
+> increments 1.2 → 4.2, 5.1 → 6.2, and the ATS adapters + 5.2. This checkpoint adds interview kits,
+> practice rubric feedback, and the STAR bank.
 
 ## Where we are
 
@@ -24,7 +24,9 @@
 | Phase 6.1 — Scheduled alerts (idempotent digest email) | ✅ complete |
 | Phase 6.2 — Application analytics & rejection intelligence | ✅ complete |
 | Phase 5.2 — ATS analyzer (/100 + parse test), cover letters | ✅ complete |
-| Phase 6.3 — Follow-ups, notification center, interview prep, skill-gap plan | ⏸️ not started |
+| Phase 7.1 — Interview kits, practice rubric feedback, STAR bank | ✅ complete |
+| Phase 7.2 — Skill-gap analysis, daily plan, Command Center | ⏸️ not started (next) |
+| Phase 6.3 — Follow-ups, notification center | ⏸️ not started |
 | Email/calendar sync (Gmail) | ⏸️ deferred |
 | Semantic matching (embeddings / pgvector) | ⏸️ deferred |
 | Frontend (Next.js) & browser extension | ⏸️ not started |
@@ -36,28 +38,32 @@ backend/app/
 ├── core/            config, db, logging, middleware, security, crypto, storage, prompts, media_types
 ├── models/          User, Profile, CareerGoal, DealBreakers, ResumeVersion, LLMUsage,
 │                    Company, Job, JobSource, FetchLog, JobAnalysis, Match,
-│                    Application, ApplicationEvent, Alert, AlertRun, TailorRun, CoverLetter
+│                    Application, ApplicationEvent, Alert, AlertRun, TailorRun, CoverLetter,
+│                    InterviewKit, PracticeSession, StarStory
 ├── schemas/         auth, profile, career_goal, deal_breakers, resume, job, job_analysis,
 │                    match, application, notification, alert, tailor, analytics,
-│                    cover_letter, ats
+│                    cover_letter, ats, interview
 ├── repositories/    tenancy-scoped repos for every model above
 ├── services/        auth, profile, career_goal, deal_breakers, resume_parser, resume_renderer,
 │                    resume, url_canonicalizer, job_normalizer, dedupe, job_ingestion,
 │                    job_service, job_refresh, job_analysis, job_context, match_scoring, match,
 │                    application_status, application, notification, encryption,
 │                    alert_schedule, alert, tailor_grounding, tailor,
-│                    application_analytics, analytics, ats_analyzer, cover_letter
+│                    application_analytics, analytics, ats_analyzer, cover_letter,
+│                    answer_signals, interview_kit, practice, star_story
 ├── adapters/        base (Fetcher/Adapter), robots (RobotsCache), user_url (HttpxFetcher),
 │                    greenhouse, lever, ashby, jsonld, mapping, http_json,
 │                    dispatch (DispatchFetcher), factory (build_fetcher)
 ├── gateway/         LLM gateway (providers: mock, openai) — complete + structured output
 ├── email/           base (EmailSender), console, recording, smtp, factory
-├── prompts/         resume_extraction, job_analysis, tailor_resume, cover_letter (versioned)
+├── prompts/         resume_extraction, job_analysis, tailor_resume, cover_letter,
+│                    interview_kit, answer_feedback, star_story (versioned)
 ├── workers/         celery_app + tasks (recheck_jobs, run_alerts)
 └── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, matches,
-                     applications, notifications, alerts, tailor-runs, cover-letters, analytics
-backend/alembic/versions/  0001_initial … 0011_cover_letters
-backend/tests/             171 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+                     applications, notifications, alerts, tailor-runs, cover-letters,
+                     interview-kits, practice-sessions, star-stories, analytics
+backend/alembic/versions/  0001_initial … 0012_interview_prep
+backend/tests/             191 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -74,6 +80,7 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Applications | `POST /applications` · `GET /applications` · `GET /applications/{id}` · `POST /applications/{id}/events` · `GET /applications/{id}/events` |
 | Tailoring | `GET /tailor-runs/{id}` · `POST /tailor-runs/{id}/decisions` · `POST /tailor-runs/{id}/apply` |
 | Cover letters | `POST /cover-letters` (generate) · `GET /cover-letters` · `GET /cover-letters/{id}` |
+| Interview | `POST /interview-kits` · `GET /interview-kits?job_id=` · `GET /interview-kits/{id}` · `POST /practice-sessions` · `GET /practice-sessions` · `GET /practice-sessions/{id}` · `POST/GET /star-stories` · `GET/PUT/DELETE /star-stories/{id}` · `POST /star-stories/draft` |
 | Alerts | `POST /alerts` · `GET /alerts` · `GET /alerts/{id}` · `PUT /alerts/{id}` · `DELETE /alerts/{id}` · `POST /alerts/{id}/preview` · `POST /alerts/{id}/run` · `GET /alerts/{id}/runs` · `POST /alerts/unsubscribe/{token}` |
 | Analytics | `GET /analytics/funnel` · `GET /analytics/rates` · `GET /analytics/rejections?by=source\|company\|role\|location\|resume_version\|month` |
 | Notifications | `POST /notifications/test` |
@@ -81,18 +88,19 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **171/171 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0011` apply cleanly to real Postgres (`alembic current` = `0011_cover_letters`).
-- Live smoke against real Postgres (`uvicorn` with `LLM_PROVIDER=mock`, real DB + S3): resume upload →
-  `GET /resumes/{id}/ats-report` → `/100` report with parse-test block; `GET /cover-letters` lists.
+- **191/191 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0012` apply cleanly to real Postgres (`alembic current` = `0012_interview_prep`).
+- Live smoke against real Postgres (`uvicorn` with `LLM_PROVIDER=mock`, real DB): `POST
+  /practice-sessions` → rubric + deterministic signals (word count, metric, STAR coverage) with the
+  timed `duration_seconds`; `POST /star-stories` + `GET /star-stories` persist and list.
+- Interview kits (`POST /interview-kits`) and the STAR `POST /star-stories/draft` are covered by unit
+  + API tests (mock gateway); the live smoke needed no ingested job (no outbound network).
 - ATS adapters: unit-tested per source with `httpx.MockTransport` (URL matching, JSON-LD mapping,
   Greenhouse double-unescape, HTTP-error fallback) plus an E2E ingestion test asserting
   `job_sources.adapter` = `greenhouse`/`lever`/`ashby`; a plain URL still files as `user_url`.
-- Cover-letter generation and tailoring grounding are covered by unit + API tests (mock gateway);
-  neither live smoke needed an ingested job (no outbound network).
-- Earlier live E2E (increments 1.2–6.2): resume upload → parse → export; job ingest → dedupe;
-  refresh → `Expired`; analyze → persisted; match `overall`/`sub_scores`/`scoring_version`;
-  application derived status; `POST /notifications/test`; analytics funnel/rates/rejections; alerts.
+- Earlier live E2E (increments 1.2–5.2): resume upload → parse → export → tailor/ats-report; job
+  ingest → dedupe; refresh → `Expired`; analyze → persisted; match scores; application status; email;
+  analytics; alerts; cover letters.
 
 ## How to resume
 
@@ -120,11 +128,11 @@ celery -A app.workers.celery_app.celery_app beat
 
 ## Next steps (agreed order)
 
-1. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
-2. **Interview prep + feedback** — kits, practice answers + rubric feedback history, STAR bank.
-3. **Skill-gap + daily plan** — demand % / marginal coverage; an aggregate daily plan.
-4. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
-5. Deferred: Gmail/calendar sync; embeddings/pgvector semantic match sub-score; resume-specific
+1. **Skill-gap + daily plan** (Phase 7.2) — demand % / marginal coverage; learning roadmap linked to a
+   daily plan; Command Center aggregating goal/funnel/today/insight.
+2. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
+3. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
+4. Deferred: Gmail/calendar sync; embeddings/pgvector semantic match sub-score; resume-specific
    matching; frontend & browser extension.
 
 ## Open follow-ups
