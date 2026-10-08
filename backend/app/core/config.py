@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 7
 
+    # Fernet master key wrapping each user's data key (dev default; override in prod).
+    master_key: str = "E4vHUnDMy5_jzV639cZBKAJuCoxLLH1XVMjKS8wfC1s="
+
     llm_provider: str = "openai"
     llm_default_model: str = "gpt-4o-mini"
     llm_cheap_model: str = "gpt-4o-mini"

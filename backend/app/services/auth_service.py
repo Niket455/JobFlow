@@ -1,3 +1,4 @@
+from app.core.crypto import generate_data_key, wrap_data_key
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -24,7 +25,11 @@ class AuthService:
     def register(self, email: str, password: str) -> User:
         if self.users.get_by_email(email) is not None:
             raise EmailAlreadyRegisteredError
-        return self.users.create(email=email, password_hash=hash_password(password))
+        return self.users.create(
+            email=email,
+            password_hash=hash_password(password),
+            wrapped_data_key=wrap_data_key(generate_data_key()),
+        )
 
     def authenticate(self, email: str, password: str) -> User:
         user = self.users.get_by_email(email)

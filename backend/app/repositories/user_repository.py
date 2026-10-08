@@ -13,8 +13,12 @@ class UserRepository(BaseRepository):
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return self.db.get(User, user_id)
 
-    def create(self, email: str, password_hash: str) -> User:
-        user = User(email=email, password_hash=password_hash)
+    def create(self, email: str, password_hash: str, wrapped_data_key: str) -> User:
+        user = User(
+            email=email,
+            password_hash=password_hash,
+            wrapped_data_key=wrapped_data_key,
+        )
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
