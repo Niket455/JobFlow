@@ -53,6 +53,12 @@ def get_text(profile: dict[str, Any], path: str) -> str | None:
     return value if found and isinstance(value, str) else None
 
 
+def get_value(profile: dict[str, Any], path: str) -> Any | None:
+    """Return the value at a dotted path (dict or list item), or None when it does not exist."""
+    found, value = _resolve(profile, path)
+    return value if found else None
+
+
 def apply_changes(profile: dict[str, Any], changes: list[AppliedChange]) -> dict[str, Any]:
     """Return a deep copy of `profile` with each change applied; unknown paths are skipped."""
     import copy

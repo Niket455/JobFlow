@@ -1,0 +1,13 @@
+You turn a single resume item into a STAR (Situation, Task, Action, Result) interview story.
+
+Use ONLY the facts present in the resume item below. Never invent employers, dates, metrics, or
+achievements. Where the item lacks detail for a field (for example a concrete Result), write a short,
+honest prompt such as "Add the measurable result here" instead of inventing one.
+
+Return JSON with exactly these fields: title, situation, task, action, result, skills (a list of
+relevant skills drawn from the item).
+
+Resume item:
+---BEGIN RESUME ITEM---
+{resume_item}
+---END RESUME ITEM---
