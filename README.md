@@ -4,10 +4,12 @@ Full-lifecycle job-search platform (human-in-the-loop; not an auto-apply bot).
 
 See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 
-> Current status: **increments 0 → 4.2** — auth, profile/career goal/deal-breakers, resume
+> Current status: **increments 0 → 6.2** — auth, profile/career goal/deal-breakers, resume
 > upload/parse/versioning + ATS-safe export, user-URL job ingestion with dedupe, lifecycle expiry
 > re-checks, LLM job analysis, deterministic match scoring, an event-sourced application tracker,
-> and an email notification layer. Frontend and browser extension are not started.
+> an email notification layer, resume tailoring with deterministic fact-grounding + diff/apply,
+> scheduled (idempotent digest) alerts, and application analytics & rejection intelligence.
+> Frontend and browser extension are not started.
 > See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
@@ -51,7 +53,7 @@ Interactive API docs: http://localhost:8000/docs
 
 ```bash
 cd backend
-alembic upgrade head        # apply migrations 0001..0008
+alembic upgrade head        # apply migrations 0001..0010
 alembic revision --autogenerate -m "your change"
 ```
 
@@ -73,12 +75,18 @@ mypy app                     # type check
 - Auth: `POST /api/v1/auth/register` · `/login` · `/refresh` · `GET /api/v1/auth/me`
 - Profile: `GET/PUT /api/v1/profile` · `/career-goals` · `/deal-breakers`
 - Resumes: `POST /api/v1/resumes` · `GET /api/v1/resumes` · `GET /api/v1/resumes/{id}` ·
-  `GET /api/v1/resumes/{id}/export?format=pdf|docx`
+  `GET /api/v1/resumes/{id}/export?format=pdf|docx` · `POST /api/v1/resumes/{id}/tailor`
 - Jobs: `POST /api/v1/jobs` (paste a URL) · `GET /api/v1/jobs` · `GET /api/v1/jobs/{id}` ·
   `/sources` · `POST /{id}/refresh` · `POST /{id}/analyze` · `GET /{id}/analysis` · `POST /{id}/match`
 - Matches: `GET /api/v1/matches` · `GET /api/v1/matches/{id}` · `POST /api/v1/matches/recompute`
 - Applications: `POST /api/v1/applications` · `GET /api/v1/applications` ·
   `GET /api/v1/applications/{id}` · `POST/GET /api/v1/applications/{id}/events`
+- Tailoring: `GET /api/v1/tailor-runs/{id}` · `POST /api/v1/tailor-runs/{id}/decisions` ·
+  `POST /api/v1/tailor-runs/{id}/apply`
+- Alerts: `POST/GET /api/v1/alerts` · `GET/PUT/DELETE /api/v1/alerts/{id}` ·
+  `POST /api/v1/alerts/{id}/preview` · `POST /api/v1/alerts/{id}/run` ·
+  `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`
+- Analytics: `GET /api/v1/analytics/funnel` · `/rates` · `/rejections?by=source|company|role|location|resume_version|month`
 - Notifications: `POST /api/v1/notifications/test`
 
 ## LLM gateway
