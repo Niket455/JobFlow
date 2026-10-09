@@ -4,10 +4,11 @@ Full-lifecycle job-search platform (human-in-the-loop; not an auto-apply bot).
 
 See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 
-> Current status: **increments 0 → 8.2** plus the **Greenhouse/Lever/Ashby ATS source adapters** —
-> auth, profile/career goal/deal-breakers, resume upload/parse/versioning + ATS-safe export,
-> Greenhouse/Lever/Ashby + user-URL job ingestion with dedupe, lifecycle expiry re-checks, LLM job
-> analysis, deterministic match scoring, an event-sourced application tracker, an email notification
+> Current status: **increments 0 → 8.2** plus the **Greenhouse/Lever/Ashby/SmartRecruiters ATS source
+> adapters** — auth, profile/career goal/deal-breakers, resume upload/parse/versioning + ATS-safe
+> export, Greenhouse/Lever/Ashby/SmartRecruiters + user-URL job ingestion with dedupe, lifecycle
+> expiry re-checks, LLM job analysis, deterministic match scoring, an event-sourced application
+> tracker, an email notification
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded versioned cover
 > letters, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric feedback
 > + a STAR bank, skill-gap demand analysis + a daily plan (with a learning roadmap), a Command Center,
@@ -81,7 +82,8 @@ mypy app                     # type check
 - Resumes: `POST /api/v1/resumes` · `GET /api/v1/resumes` · `GET /api/v1/resumes/{id}` ·
   `GET /api/v1/resumes/{id}/export?format=pdf|docx` · `POST /api/v1/resumes/{id}/tailor` ·
   `GET /api/v1/resumes/{id}/ats-report?job_id=`
-- Jobs: `POST /api/v1/jobs` (paste a URL; Greenhouse/Lever/Ashby use their public APIs) ·
+- Jobs: `POST /api/v1/jobs` (paste a URL; Greenhouse/Lever/Ashby/SmartRecruiters use their public
+  APIs) ·
   `GET /api/v1/jobs` · `GET /api/v1/jobs/{id}` ·
   `/sources` · `POST /{id}/refresh` · `POST /{id}/analyze` · `GET /{id}/analysis` · `POST /{id}/match`
 - Matches: `GET /api/v1/matches` · `GET /api/v1/matches/{id}` · `POST /api/v1/matches/recompute`

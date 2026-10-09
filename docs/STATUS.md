@@ -1,8 +1,8 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 6.3 (follow-ups & notification center)**. Committed checkpoints: Phase 0 +
-> 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, and 8.2. This
-> checkpoint adds the CRM follow-ups view and the persisted in-app notification center.
+> Saved: end of **increment 2.5 (SmartRecruiters adapter)**. Committed checkpoints: Phase 0 + 1.1,
+> increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, and 6.3. This
+> checkpoint adds the SmartRecruiters source adapter, completing the ATS URL-adapter set.
 
 ## Where we are
 
@@ -17,6 +17,7 @@
 | Phase 2.2 — Job lifecycle expiry re-check (Celery) | ✅ complete |
 | Phase 2.3 — LLM job analysis | ✅ complete |
 | Phase 2.4 — Greenhouse/Lever/Ashby ATS source adapters | ✅ complete |
+| Phase 2.5 — SmartRecruiters ATS source adapter | ✅ complete |
 | Phase 3.1 — Deterministic match scoring | ✅ complete |
 | Phase 4.1 — Application tracker (event-sourced) | ✅ complete |
 | Phase 4.2 — Email notifications (transport) | ✅ complete |
@@ -59,7 +60,7 @@ backend/app/
 │                    learning_roadmap, learning_roadmap_service, command_center,
 │                    contact, outreach, follow_up_service, integration, email, calendar
 ├── adapters/        base (Fetcher/Adapter), robots (RobotsCache), user_url (HttpxFetcher),
-│                    greenhouse, lever, ashby, jsonld, mapping, http_json,
+│                    greenhouse, lever, ashby, smartrecruiters, jsonld, mapping, http_json,
 │                    dispatch (DispatchFetcher), factory (build_fetcher)
 ├── integrations/    base (InboxProvider), mock_inbox, gmail (flagged off), factory
 ├── gateway/         LLM gateway (providers: mock, openai) — complete + structured output
@@ -73,7 +74,7 @@ backend/app/
                      contacts, follow-ups, outreach-drafts, integrations, emails,
                      calendar-suggestions, analytics
 backend/alembic/versions/  0001_initial … 0015_notifications
-backend/tests/             244 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+backend/tests/             246 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -85,7 +86,7 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Auth | `POST /auth/register` · `/login` · `/refresh` · `GET /auth/me` |
 | Profile | `GET/PUT /profile`, `GET/PUT /career-goals`, `GET/PUT /deal-breakers` |
 | Resumes | `POST /resumes` (upload) · `GET /resumes` · `GET /resumes/{id}` · `GET /resumes/{id}/export?format=pdf\|docx` · `POST /resumes/{id}/tailor` · `GET /resumes/{id}/ats-report?job_id=` |
-| Jobs | `POST /jobs` (paste URL — Greenhouse/Lever/Ashby URLs use their public APIs) · `GET /jobs` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
+| Jobs | `POST /jobs` (paste URL — Greenhouse/Lever/Ashby/SmartRecruiters URLs use their public APIs) · `GET /jobs` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
 | Matches | `GET /matches` · `GET /matches/{id}` · `POST /matches/recompute` |
 | Applications | `POST /applications` · `GET /applications` · `GET /applications/{id}` · `POST /applications/{id}/events` · `GET /applications/{id}/events` |
 | Tailoring | `GET /tailor-runs/{id}` · `POST /tailor-runs/{id}/decisions` · `POST /tailor-runs/{id}/apply` |
@@ -102,8 +103,12 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **244/244 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0015` apply cleanly to real Postgres (`alembic current` = `0015_notifications`).
+- **246/246 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0015` apply cleanly to real Postgres (`alembic current` = `0015_notifications`);
+  2.5 added no tables (the SmartRecruiters adapter reuses `job_sources`/`fetch_log`).
+- SmartRecruiters adapter: unit-tested with `httpx.MockTransport` (URL matching, title/company/
+  location/description mapping, entity unescape) plus an E2E ingestion test asserting
+  `job_sources.adapter == "smartrecruiters"`.
 - Live smoke (6.3): `POST /notifications/refresh` is idempotent (`created=0` on re-run), and
   `GET /notifications`, `/unread-count`, `/read-all`, and `GET /follow-ups` return the expected shape
   and reject unauthenticated calls; the derivation is covered by pure unit + API tests.
@@ -153,7 +158,9 @@ celery -A app.workers.celery_app.celery_app beat
 
 ## Next steps (agreed order)
 
-1. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
+1. **Leads + discovery** — a `leads` table with the New→Queued→Captured→Dismissed lifecycle,
+   `/leads` + `/leads/{id}/capture`, an RSS/Atom discovery source, and a Google-PSE source
+   (feature-flagged off) with a quota guard + 24 h cache.
 2. Deferred: real Gmail OAuth + Outlook; Google Calendar write; Celery-beat notification auto-refresh /
    email delivery; embeddings/pgvector semantic match sub-score; resume-specific matching; frontend &
    browser extension.
