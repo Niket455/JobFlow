@@ -1,10 +1,12 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 2.6 (leads & discovery)**. Committed checkpoints: Phase 0 + 1.1,
-> increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, and 2.5. This
-> checkpoint adds the leads (New→Queued→Captured→Dismissed) lifecycle, per-user RSS/Atom + Google-PSE
-> discovery sources with a Celery-beat poll, and the Redis-backed quota guard + 24 h query cache —
-> completing Phase 2 (Ingestion & Discovery).
+> Saved: end of **increment 2.6 (leads & discovery)** plus a **gap-closure pass**. Committed
+> checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3,
+> 8.1, 8.2, 6.3, and 2.5. The 2.6 checkpoint added the leads (New→Queued→Captured→Dismissed) lifecycle,
+> per-user RSS/Atom + Google-PSE discovery sources with a Celery-beat poll, and the Redis-backed quota
+> guard + 24 h query cache (completing Phase 2). This pass closes follow-up gaps: cover-letter version
+> lineage + list filter/pagination + delete, the skill-gap marginal-coverage gain, and Celery-beat
+> notification auto-refresh.
 
 ## Where we are
 
@@ -34,6 +36,7 @@
 | Phase 8.2 — Email classification + calendar suggestions (provider-abstracted) | ✅ complete |
 | Phase 7.3 — Learning roadmap, Command Center | ✅ complete |
 | Phase 6.3 — Follow-ups, notification center | ✅ complete |
+| Gap-closures — cover-letter lineage/filter/delete, skill-gap coverage gain, notification auto-refresh | ✅ complete |
 | Semantic matching (embeddings / pgvector) | ⏸️ deferred |
 | Frontend (Next.js) & browser extension | ⏸️ not started |
 
@@ -73,14 +76,15 @@ backend/app/
 ├── email/           base (EmailSender), console, recording, smtp, factory
 ├── prompts/         resume_extraction, job_analysis, tailor_resume, cover_letter,
 │                    interview_kit, answer_feedback, star_story, outreach, email_classify
-├── workers/         celery_app + tasks (recheck_jobs, run_alerts, discover_leads)
+├── workers/         celery_app + tasks (recheck_jobs, run_alerts, discover_leads,
+│                    refresh_notifications)
 └── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, leads,
                      discovery-sources, matches, applications, notifications, alerts, tailor-runs,
                      cover-letters, interview-kits, practice-sessions, star-stories, insights,
                      command-center, contacts, follow-ups, outreach-drafts, integrations, emails,
                      calendar-suggestions, analytics
 backend/alembic/versions/  0001_initial … 0016_leads
-backend/tests/             267 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+backend/tests/             274 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -97,7 +101,7 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Matches | `GET /matches` · `GET /matches/{id}` · `POST /matches/recompute` |
 | Applications | `POST /applications` · `GET /applications` · `GET /applications/{id}` · `POST /applications/{id}/events` · `GET /applications/{id}/events` |
 | Tailoring | `GET /tailor-runs/{id}` · `POST /tailor-runs/{id}/decisions` · `POST /tailor-runs/{id}/apply` |
-| Cover letters | `POST /cover-letters` (generate) · `GET /cover-letters` · `GET /cover-letters/{id}` |
+| Cover letters | `POST /cover-letters` (generate) · `GET /cover-letters?job_id=&limit=&offset=` · `GET /cover-letters/{id}` · `POST /cover-letters/{id}/revise` · `DELETE /cover-letters/{id}` |
 | Interview | `POST /interview-kits` · `GET /interview-kits?job_id=` · `GET /interview-kits/{id}` · `POST /practice-sessions` · `GET /practice-sessions` · `GET /practice-sessions/{id}` · `POST/GET /star-stories` · `GET/PUT/DELETE /star-stories/{id}` · `POST /star-stories/draft` |
 | Insights | `GET /skill-gap` · `GET /learning-roadmap` · `GET /daily-plan` |
 | Command Center | `GET /command-center` |
@@ -110,10 +114,15 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **267/267 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- **274/274 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
 - Migrations `0001` → `0016` apply cleanly to real Postgres (`alembic current` = `0016_leads`);
   2.6 adds `discovery_sources` + `leads` (2.5 added no tables — the SmartRecruiters adapter reuses
-  `job_sources`/`fetch_log`).
+  `job_sources`/`fetch_log`). The gap-closure pass added no migration.
+- Gap-closures: cover-letter `revise` links a new version via `parent_letter_id` (same job/resume), and
+  `GET /cover-letters` filters by `job_id` with `limit`/`offset` plus a `DELETE`; skill-gap
+  `SkillDemand` now carries `coverage_gain` (a missing skill's marginal coverage — its `jobs` count;
+  0 for held skills); the `refresh_notifications` beat task auto-refreshes every active user's feed
+  idempotently. Covered by unit + API tests.
 - Leads & discovery: RSS/Atom parsing and Google-PSE mapping unit-tested with `httpx.MockTransport`
   (incl. a PSE cache hit making one outbound call and the daily quota guard short-circuiting), plus E2E
   tests for the `New→Captured` / `New→Queued` capture transitions, per-user isolation, and the
@@ -177,8 +186,10 @@ celery -A app.workers.celery_app.celery_app beat
    flip `CAREERPILOT_ENABLE_GOOGLE_PSE=true`; subscribe users to feeds/queries via `/discovery-sources`.
 2. **Phase 3 remainder** — bookmarklet / paste-URL capture into an application; non-Active jobs never
    recommended.
-3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; Celery-beat notification auto-refresh /
-   email delivery; embeddings/pgvector semantic match sub-score; resume-specific matching; frontend &
+3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; notification email delivery;
+   embeddings/pgvector semantic match sub-score; resume-specific matching; analytics depth
+   (per-source/resume breakdowns + period filter); ATS report persistence; daily-plan weekly review;
+   follow-up snooze/mark; rejection reason taxonomy; A/B tests; personalized ranking; frontend &
    browser extension.
 
 ## Open follow-ups

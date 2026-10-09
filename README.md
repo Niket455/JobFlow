@@ -12,11 +12,14 @@ See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 > source with a daily quota + 24 h query cache), lifecycle expiry re-checks, LLM job analysis,
 > deterministic match scoring, an event-sourced application
 > tracker, an email notification
-> layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded versioned cover
-> letters, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric feedback
-> + a STAR bank, skill-gap demand analysis + a daily plan (with a learning roadmap), a Command Center,
+> layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded cover letters with
+> revision lineage, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric
+> feedback
+> + a STAR bank, skill-gap demand analysis (with marginal-coverage gain) + a daily plan (with a
+> learning roadmap), a Command Center,
 > a contacts CRM + grounded outreach/referral drafts, a follow-ups view + a persisted in-app
-> notification center, provider-abstracted email classification + calendar suggestions, scheduled
+> notification center (auto-refreshed on a Celery-beat schedule), provider-abstracted email
+> classification + calendar suggestions, scheduled
 > (idempotent digest) alerts, and application analytics & rejection intelligence. Frontend and browser
 > extension are not started. See `docs/STATUS.md` for the checkpoint.
 
@@ -97,8 +100,9 @@ mypy app                     # type check
   `GET /api/v1/applications/{id}` · `POST/GET /api/v1/applications/{id}/events`
 - Tailoring: `GET /api/v1/tailor-runs/{id}` · `POST /api/v1/tailor-runs/{id}/decisions` ·
   `POST /api/v1/tailor-runs/{id}/apply`
-- Cover letters: `POST /api/v1/cover-letters` · `GET /api/v1/cover-letters` ·
-  `GET /api/v1/cover-letters/{id}`
+- Cover letters: `POST /api/v1/cover-letters` · `GET /api/v1/cover-letters?job_id=&limit=&offset=` ·
+  `GET /api/v1/cover-letters/{id}` · `POST /api/v1/cover-letters/{id}/revise` ·
+  `DELETE /api/v1/cover-letters/{id}`
 - Interview: `POST/GET /api/v1/interview-kits` · `GET /api/v1/interview-kits/{id}` ·
   `POST/GET /api/v1/practice-sessions` · `GET /api/v1/practice-sessions/{id}` ·
   `POST/GET /api/v1/star-stories` · `GET/PUT/DELETE /api/v1/star-stories/{id}` ·
