@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from app.adapters.factory import build_fetcher
+from app.adapters.factory import build_discovery_runtime, build_fetcher
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.email.factory import build_email_sender
@@ -8,6 +8,7 @@ from app.repositories.fetch_log_repository import FetchLogRepository
 from app.repositories.job_repository import JobRepository
 from app.repositories.job_source_repository import JobSourceRepository
 from app.services.alert_service import build_alert_service
+from app.services.discovery_service import build_discovery_service
 from app.services.job_refresh_service import JobRefreshService
 from app.workers.celery_app import celery_app
 
@@ -35,5 +36,17 @@ def run_alerts() -> int:
     try:
         service = build_alert_service(session, build_email_sender())
         return service.run_due(now=datetime.now(UTC), limit=settings.alerts_batch_size)
+    finally:
+        session.close()
+
+
+@celery_app.task(name="app.workers.tasks.discover_leads")
+def discover_leads() -> int:
+    """Run every due discovery source. Returns the number of sources processed."""
+    session = SessionLocal()
+    try:
+        runtime = build_discovery_runtime()
+        service = build_discovery_service(session, source_factory=runtime.source)
+        return service.run_due(now=datetime.now(UTC), limit=settings.lead_discovery_batch_size)
     finally:
         session.close()

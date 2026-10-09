@@ -8,6 +8,7 @@ from app.models.company import Company
 from app.models.contact import Contact
 from app.models.cover_letter import CoverLetter
 from app.models.deal_breakers import DealBreakers
+from app.models.discovery_source import DiscoverySource
 from app.models.email_message import EmailMessage
 from app.models.fetch_log import FetchLog
 from app.models.integration import Integration
@@ -15,6 +16,7 @@ from app.models.interview_kit import InterviewKit
 from app.models.job import Job
 from app.models.job_analysis import JobAnalysis
 from app.models.job_source import JobSource
+from app.models.lead import Lead
 from app.models.llm_usage import LLMUsage
 from app.models.match import Match
 from app.models.notification import Notification
@@ -37,6 +39,7 @@ __all__ = [
     "Contact",
     "CoverLetter",
     "DealBreakers",
+    "DiscoverySource",
     "EmailMessage",
     "FetchLog",
     "Integration",
@@ -45,6 +48,7 @@ __all__ = [
     "JobAnalysis",
     "JobSource",
     "LLMUsage",
+    "Lead",
     "Match",
     "Notification",
     "OutreachDraft",

@@ -11,12 +11,14 @@ from app.api.v1 import (
     contacts,
     cover_letters,
     deal_breakers,
+    discovery_sources,
     emails,
     follow_ups,
     insights,
     integrations,
     interview_kits,
     jobs,
+    leads,
     matches,
     notifications,
     outreach_drafts,
@@ -34,6 +36,8 @@ api_router.include_router(career_goals.router)
 api_router.include_router(deal_breakers.router)
 api_router.include_router(resumes.router)
 api_router.include_router(jobs.router)
+api_router.include_router(leads.router)
+api_router.include_router(discovery_sources.router)
 api_router.include_router(matches.router)
 api_router.include_router(applications.router)
 api_router.include_router(notifications.router)

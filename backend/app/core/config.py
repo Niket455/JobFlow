@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     # Greenhouse/Lever/Ashby public-API adapters, selected from the pasted URL.
     enable_ats_ingestion: bool = True
 
+    # Leads & discovery (RSS/Atom + Google Programmable Search).
+    enable_rss_discovery: bool = True
+    enable_google_pse: bool = False
+    google_pse_api_key: str | None = None
+    google_pse_cx: str | None = None
+    google_pse_daily_quota: int = 100
+    google_pse_cache_seconds: int = 86400
+    lead_discovery_interval_minutes: int = 360
+    lead_discovery_batch_size: int = 100
+
     # Job lifecycle re-checks (Celery beat).
     job_recheck_hours: int = 24
     job_recheck_interval_minutes: int = 60

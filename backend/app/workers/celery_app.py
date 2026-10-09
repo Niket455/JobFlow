@@ -21,5 +21,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.run_alerts",
             "schedule": settings.alert_run_interval_minutes * 60,
         },
+        "discover-leads": {
+            "task": "app.workers.tasks.discover_leads",
+            "schedule": settings.lead_discovery_interval_minutes * 60,
+        },
     },
 )

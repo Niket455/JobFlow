@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import redis
 
 from app.adapters.base import FetchError, FetchResult, RobotsDisallowedError
 
@@ -157,3 +158,88 @@ def ats_handler(request: httpx.Request) -> httpx.Response:
 
 def ats_client() -> httpx.Client:
     return httpx.Client(transport=httpx.MockTransport(ats_handler))
+
+
+# --- Discovery fixtures (RSS/Atom feeds + Google PSE) -------------------------------------
+
+RSS_FEED_URL = "https://feeds.example.com/jobs.rss"
+RSS_FEED_XML = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Jobs</title>
+    <item><title>Data Engineer</title><link>{DE_URL}</link></item>
+    <item><title>Ghost Role</title><link>https://jobs.example.com/ghost-role</link></item>
+  </channel>
+</rss>"""
+
+ATOM_FEED_URL = "https://feeds.example.com/jobs.atom"
+ATOM_FEED_XML = """<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Atom Jobs</title>
+  <entry>
+    <title>Site Reliability Engineer</title>
+    <link rel="alternate" href="https://atom.example.com/sre"/>
+  </entry>
+</feed>"""
+
+PSE_PREFIX = "https://www.googleapis.com/customsearch/v1"
+PSE_QUERY = "python developer remote"
+PSE_URL = f"{PSE_PREFIX}?key=test-key&cx=test-cx&q=python+developer+remote&num=10"
+PSE_JSON = {
+    "items": [
+        {"title": "Python Developer", "link": "https://jobs.example.com/python-developer"},
+        {"title": "Data Engineer", "link": DE_URL},
+    ]
+}
+
+_DISCOVERY_TEXT = {RSS_FEED_URL: RSS_FEED_XML, ATOM_FEED_URL: ATOM_FEED_XML}
+
+
+def discovery_handler(request: httpx.Request) -> httpx.Response:
+    url = str(request.url)
+    if url in _DISCOVERY_TEXT:
+        return httpx.Response(200, text=_DISCOVERY_TEXT[url])
+    if url.startswith(PSE_PREFIX):
+        return httpx.Response(200, json=PSE_JSON)
+    return httpx.Response(404, text="not found")
+
+
+def discovery_client() -> tuple[httpx.Client, list[str]]:
+    """A mock-transport client plus the list of URLs it was asked for."""
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return discovery_handler(request)
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), calls
+
+
+class FakeRedis:
+    """Minimal in-memory stand-in for ``redis.Redis`` (get/setex/incr/expire)."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.store: dict[str, str] = {}
+        self.fail = fail
+
+    def get(self, key: str) -> str | None:
+        if self.fail:
+            raise redis.RedisError("boom")
+        return self.store.get(key)
+
+    def setex(self, key: str, ttl: int, value: str) -> None:
+        if self.fail:
+            raise redis.RedisError("boom")
+        self.store[key] = value
+
+    def incr(self, key: str) -> int:
+        if self.fail:
+            raise redis.RedisError("boom")
+        count = int(self.store.get(key, "0")) + 1
+        self.store[key] = str(count)
+        return count
+
+    def expire(self, key: str, ttl: int) -> bool:
+        if self.fail:
+            raise redis.RedisError("boom")
+        return True

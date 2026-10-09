@@ -1,7 +1,11 @@
+from dataclasses import dataclass
+
 import httpx
+import redis
 
 from app.adapters.ashby import AshbyAdapter
 from app.adapters.base import Adapter, Fetcher
+from app.adapters.discovery import DiscoverySource, build_discovery_source
 from app.adapters.dispatch import DispatchFetcher
 from app.adapters.greenhouse import GreenhouseAdapter
 from app.adapters.lever import LeverAdapter
@@ -9,6 +13,7 @@ from app.adapters.robots import RobotsCache
 from app.adapters.smartrecruiters import SmartRecruitersAdapter
 from app.adapters.user_url import HttpxFetcher
 from app.core.config import settings
+from app.core.redis_cache import DailyQuota, RedisCache
 
 
 def build_fetcher(client: httpx.Client | None = None) -> Fetcher:
@@ -35,3 +40,37 @@ def build_fetcher(client: httpx.Client | None = None) -> Fetcher:
         SmartRecruitersAdapter(client),
     ]
     return DispatchFetcher(adapters, html)
+
+
+@dataclass
+class DiscoveryRuntime:
+    """Shared collaborators for discovery sources (client, robots, cache, quota)."""
+
+    client: httpx.Client
+    robots: RobotsCache
+    cache: RedisCache
+    quota: DailyQuota
+
+    def source(self, kind: str) -> DiscoverySource:
+        return build_discovery_source(
+            kind,
+            client=self.client,
+            robots=self.robots,
+            cache=self.cache,
+            quota=self.quota,
+        )
+
+
+def build_discovery_runtime() -> DiscoveryRuntime:
+    client = httpx.Client(
+        timeout=settings.fetch_timeout_seconds,
+        follow_redirects=True,
+        headers={"User-Agent": settings.user_agent},
+    )
+    redis_client = redis.Redis.from_url(settings.redis_url, socket_connect_timeout=2)
+    return DiscoveryRuntime(
+        client=client,
+        robots=RobotsCache(client, ttl_seconds=settings.robots_cache_ttl_seconds),
+        cache=RedisCache(redis_client),
+        quota=DailyQuota(redis_client),
+    )
