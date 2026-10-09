@@ -31,7 +31,9 @@ class SkillGapService:
         self.analyses = analyses
 
     def report(self, user: User) -> SkillGapReport:
-        tracked = self.jobs.list_for_user(user.id, limit=_TRACKED_JOBS_LIMIT, offset=0)
+        tracked = self.jobs.list_for_user(
+            user.id, limit=_TRACKED_JOBS_LIMIT, offset=0, status="Active"
+        )
         analyses = self.analyses.get_for_jobs({job.id for job in tracked})
         job_term_lists = [job_terms(record.data) for record in analyses.values()]
         gap = analyze_skill_gap(self._profile_skills(user), job_term_lists)

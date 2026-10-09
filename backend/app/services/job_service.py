@@ -25,8 +25,10 @@ class JobService:
         self.sources = sources
         self.companies = companies
 
-    def list_for_user(self, user: User, *, limit: int, offset: int) -> list[JobSummary]:
-        jobs = self.jobs.list_for_user(user.id, limit=limit, offset=offset)
+    def list_for_user(
+        self, user: User, *, limit: int, offset: int, status: str | None = None
+    ) -> list[JobSummary]:
+        jobs = self.jobs.list_for_user(user.id, limit=limit, offset=offset, status=status)
         companies = self.companies.get_many({job.company_id for job in jobs if job.company_id})
         return [self._summary(job, companies) for job in jobs]
 

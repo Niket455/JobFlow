@@ -11,6 +11,7 @@ from app.gateway.gateway import LLMGateway
 from app.gateway.providers.mock_provider import MockProvider
 from app.main import app
 from app.models.application import Application
+from app.models.job import Job
 from app.models.job_analysis import JobAnalysis
 from app.models.match import Match
 
@@ -140,3 +141,19 @@ def test_daily_plan_follow_up_then_interview(client: TestClient, db_session: Ses
         item["kind"] for item in client.get("/api/v1/daily-plan", headers=headers).json()["items"]
     }
     assert "interview_prep" in kinds
+
+
+def test_skill_gap_ignores_non_active_jobs(client: TestClient, db_session: Session) -> None:
+    headers = _headers(client, USER_A)
+    client.put("/api/v1/profile", json={"skills": ["Python"]}, headers=headers)
+    job_id = _ingest(client, headers)
+    _use_analysis_gateway()
+    client.post(f"/api/v1/jobs/{job_id}/analyze", headers=headers)
+
+    row = db_session.get(Job, uuid.UUID(job_id))
+    assert row is not None
+    row.status = "Expired"
+    db_session.commit()
+
+    report = client.get("/api/v1/skill-gap", headers=headers).json()
+    assert report["total_jobs"] == 0

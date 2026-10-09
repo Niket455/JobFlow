@@ -20,7 +20,8 @@ class MatchRepository(BaseRepository):
         return list(
             self.db.scalars(
                 select(Match)
-                .where(Match.user_id == user_id)
+                .join(Job, Job.id == Match.job_id)
+                .where(Match.user_id == user_id, Job.status == "Active")
                 .order_by(Match.overall.desc(), Match.updated_at.desc())
                 .limit(limit)
                 .offset(offset)

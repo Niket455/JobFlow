@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class ApplicationCreate(BaseModel):
@@ -9,6 +9,12 @@ class ApplicationCreate(BaseModel):
     resume_version_id: uuid.UUID | None = None
     source: str | None = None
     applied_at: datetime | None = None
+
+
+class CaptureRequest(BaseModel):
+    url: HttpUrl
+    applied_at: datetime | None = None
+    source: str | None = None
 
 
 class ApplicationEventCreate(BaseModel):

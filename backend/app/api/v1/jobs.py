@@ -1,18 +1,23 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.adapters.base import FetchError, RobotsDisallowedError
 from app.api.deps import CurrentUser, DbSession, FetcherDep, GatewayDep
 from app.core.config import settings
+from app.repositories.application_event_repository import ApplicationEventRepository
+from app.repositories.application_repository import ApplicationRepository
 from app.repositories.company_repository import CompanyRepository
 from app.repositories.fetch_log_repository import FetchLogRepository
 from app.repositories.job_analysis_repository import JobAnalysisRepository
 from app.repositories.job_repository import JobRepository
 from app.repositories.job_source_repository import JobSourceRepository
+from app.schemas.application import ApplicationRead, CaptureRequest
 from app.schemas.job import IngestRequest, JobRead, JobSourceRead, JobSummary
 from app.schemas.job_analysis import JobAnalysisRead
 from app.schemas.match import MatchRead
+from app.services.application_service import ApplicationService
+from app.services.capture_service import CaptureService
 from app.services.job_analysis_service import JobAnalysisNotFoundError, JobAnalysisService
 from app.services.job_ingestion_service import JobIngestionService
 from app.services.job_refresh_service import JobRefreshService
@@ -35,6 +40,18 @@ def _ingestion(db: DbSession, fetcher: FetcherDep) -> JobIngestionService:
 def _refresh(db: DbSession, fetcher: FetcherDep) -> JobRefreshService:
     return JobRefreshService(
         JobRepository(db), JobSourceRepository(db), FetchLogRepository(db), fetcher
+    )
+
+
+def _capture(db: DbSession, fetcher: FetcherDep) -> CaptureService:
+    return CaptureService(
+        _ingestion(db, fetcher),
+        ApplicationService(
+            ApplicationRepository(db),
+            ApplicationEventRepository(db),
+            JobRepository(db),
+            JobSourceRepository(db),
+        ),
     )
 
 
@@ -72,14 +89,46 @@ def ingest_job(
         ) from exc
 
 
+@router.post("/capture", response_model=ApplicationRead)
+def capture_job(
+    payload: CaptureRequest,
+    response: Response,
+    current_user: CurrentUser,
+    db: DbSession,
+    fetcher: FetcherDep,
+) -> ApplicationRead:
+    if not settings.enable_user_url_ingestion:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="User-URL ingestion is disabled"
+        )
+    try:
+        application, created = _capture(db, fetcher).capture(
+            current_user,
+            url=str(payload.url),
+            applied_at=payload.applied_at,
+            source=payload.source,
+        )
+    except RobotsDisallowedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="robots.txt disallows fetching this URL"
+        ) from exc
+    except FetchError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not fetch the URL"
+        ) from exc
+    response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+    return application
+
+
 @router.get("", response_model=list[JobSummary])
 def list_jobs(
     current_user: CurrentUser,
     db: DbSession,
+    job_status: str | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> list[JobSummary]:
-    return _jobs(db).list_for_user(current_user, limit=limit, offset=offset)
+    return _jobs(db).list_for_user(current_user, limit=limit, offset=offset, status=job_status)
 
 
 @router.get("/{job_id}", response_model=JobRead)

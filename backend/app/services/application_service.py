@@ -1,6 +1,8 @@
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
+
 from app.models.application import Application
 from app.models.application_event import ApplicationEvent
 from app.models.user import User
@@ -53,21 +55,41 @@ class ApplicationService:
             raise DuplicateApplicationError(existing.id)
 
         now = datetime.now(UTC)
-        application = self.applications.create(
-            user_id=user.id,
-            job_id=payload.job_id,
-            resume_version_id=payload.resume_version_id,
-            source=payload.source,
-            applied_at=payload.applied_at,
-        )
-        self.events.create(
-            application_id=application.id,
-            type="applied" if payload.applied_at is not None else "saved",
-            payload={},
-            occurred_at=payload.applied_at or now,
-        )
-        self.applications.commit()
+        try:
+            application = self.applications.create(
+                user_id=user.id,
+                job_id=payload.job_id,
+                resume_version_id=payload.resume_version_id,
+                source=payload.source,
+                applied_at=payload.applied_at,
+            )
+            self.events.create(
+                application_id=application.id,
+                type="applied" if payload.applied_at is not None else "saved",
+                payload={},
+                occurred_at=payload.applied_at or now,
+            )
+            self.applications.commit()
+        except IntegrityError as exc:
+            self.applications.db.rollback()
+            concurrent = self.applications.get_for_user_job(user.id, payload.job_id)
+            if concurrent is None:
+                raise
+            raise DuplicateApplicationError(concurrent.id) from exc
         return self._to_read(application)
+
+    def ensure(self, user: User, payload: ApplicationCreate) -> tuple[ApplicationRead, bool]:
+        """Return the existing application (created=False) or create one (created=True)."""
+        existing = self.applications.get_for_user_job(user.id, payload.job_id)
+        if existing is not None:
+            return self._to_read(existing), False
+        try:
+            return self.create(user, payload), True
+        except DuplicateApplicationError as exc:
+            record = self.applications.get_for_user(user.id, exc.application_id)
+            if record is None:
+                raise
+            return self._to_read(record), False
 
     def add_event(
         self, user: User, application_id: uuid.UUID, payload: ApplicationEventCreate

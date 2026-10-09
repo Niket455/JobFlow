@@ -143,3 +143,19 @@ def test_match_uses_analysis_produced_by_analyze(client: TestClient) -> None:
     response = client.post(f"/api/v1/jobs/{job['id']}/match", headers=headers)
     assert response.status_code == 200
     assert response.json()["sub_scores"]["skills"] == 8.0
+
+
+def test_list_excludes_non_active_matches(client: TestClient, db_session: Session) -> None:
+    headers = _headers(client, USER_A)
+    _set_profile(client, headers)
+    job = _ingest(client, headers, DE_URL)
+    _seed_analysis(db_session, job["id"])
+    matched = client.post(f"/api/v1/jobs/{job['id']}/match", headers=headers).json()
+
+    row = db_session.get(Job, uuid.UUID(str(job["id"])))
+    assert row is not None
+    row.status = "Expired"
+    db_session.commit()
+
+    assert client.get("/api/v1/matches", headers=headers).json() == []
+    assert client.get(f"/api/v1/matches/{matched['id']}", headers=headers).status_code == 200
