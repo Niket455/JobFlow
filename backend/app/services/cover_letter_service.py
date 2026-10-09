@@ -16,7 +16,9 @@ from app.repositories.job_source_repository import JobSourceRepository
 from app.repositories.resume_repository import ResumeVersionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.cover_letter import (
+    CoverLetterApplyRead,
     CoverLetterClaimRead,
+    CoverLetterDecisions,
     CoverLetterDraft,
     CoverLetterRead,
     CoverLetterRequest,
@@ -31,6 +33,14 @@ from app.services.tailor_grounding import is_grounded
 
 
 class CoverLetterNotFoundError(Exception):
+    pass
+
+
+class CoverLetterClaimError(Exception):
+    pass
+
+
+class CoverLetterBlockedError(Exception):
     pass
 
 
@@ -119,14 +129,17 @@ class CoverLetterService:
         )
 
         corpus = f"{resume_text or profile.model_dump_json()}\n{context}"
-        claims = [
-            CoverLetterClaimRead(
-                text=claim.text,
-                source_span=claim.source_span,
-                grounded=is_grounded(claim.source_span, corpus),
+        claims: list[CoverLetterClaimRead] = []
+        for claim in draft.claims:
+            grounded = is_grounded(claim.source_span, corpus)
+            claims.append(
+                CoverLetterClaimRead(
+                    text=claim.text,
+                    source_span=claim.source_span,
+                    grounded=grounded,
+                    decision="approved" if grounded else "pending",
+                )
             )
-            for claim in draft.claims
-        ]
         letter = self.letters.create(
             user_id=user.id,
             job_id=job.id,
@@ -165,6 +178,36 @@ class CoverLetterService:
         self.letters.delete(letter)
         self.letters.commit()
 
+    def set_decisions(
+        self, user: User, letter_id: uuid.UUID, payload: CoverLetterDecisions
+    ) -> CoverLetterRead:
+        letter = self.letters.get_for_user(user.id, letter_id)
+        if letter is None:
+            raise CoverLetterNotFoundError
+        grounding = [dict(item) for item in letter.grounding]
+        for update in payload.decisions:
+            if update.index >= len(grounding):
+                raise CoverLetterClaimError(f"No claim at index {update.index}")
+            grounding[update.index]["decision"] = update.decision
+        letter.grounding = grounding
+        self.letters.commit()
+        data_key = ensure_data_key(user, self.users)
+        return _to_read(letter, data_key)
+
+    def apply(self, user: User, letter_id: uuid.UUID) -> CoverLetterApplyRead:
+        letter = self.letters.get_for_user(user.id, letter_id)
+        if letter is None:
+            raise CoverLetterNotFoundError
+        claims = _claims(letter)
+        if any(claim.decision == "pending" for claim in claims):
+            raise CoverLetterBlockedError
+        data_key = ensure_data_key(user, self.users)
+        body = decrypt_text(data_key, letter.body_enc)
+        removed = [claim.text for claim in claims if claim.decision == "rejected"]
+        for text in removed:
+            body = body.replace(text, "")
+        return CoverLetterApplyRead(body=_tidy(body), removed_claims=removed)
+
 
 def build_cover_letter_service(db: Session, gateway: LLMGateway) -> CoverLetterService:
     return CoverLetterService(
@@ -180,7 +223,7 @@ def build_cover_letter_service(db: Session, gateway: LLMGateway) -> CoverLetterS
 
 
 def _to_read(letter: CoverLetter, data_key: str) -> CoverLetterRead:
-    claims = [CoverLetterClaimRead(**item) for item in letter.grounding]
+    claims = _claims(letter)
     return CoverLetterRead(
         id=letter.id,
         job_id=letter.job_id,
@@ -191,6 +234,32 @@ def _to_read(letter: CoverLetter, data_key: str) -> CoverLetterRead:
         subject=letter.subject,
         body=decrypt_text(data_key, letter.body_enc),
         claims=claims,
-        blocked_count=sum(1 for claim in claims if not claim.grounded),
+        blocked_count=sum(1 for claim in claims if claim.decision == "pending"),
         created_at=letter.created_at,
     )
+
+
+def _claims(letter: CoverLetter) -> list[CoverLetterClaimRead]:
+    claims: list[CoverLetterClaimRead] = []
+    for item in letter.grounding:
+        grounded = bool(item.get("grounded"))
+        decision = item.get("decision") or ("approved" if grounded else "pending")
+        claims.append(
+            CoverLetterClaimRead(
+                text=str(item.get("text", "")),
+                source_span=item.get("source_span"),
+                grounded=grounded,
+                decision=decision,
+            )
+        )
+    return claims
+
+
+def _tidy(text: str) -> str:
+    lines = [line.rstrip() for line in text.splitlines()]
+    result: list[str] = []
+    for line in lines:
+        if line == "" and (not result or result[-1] == ""):
+            continue
+        result.append(line)
+    return "\n".join(result).strip()

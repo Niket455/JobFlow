@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CoverLetterClaim(BaseModel):
@@ -29,6 +30,7 @@ class CoverLetterClaimRead(BaseModel):
     text: str
     source_span: str | None = None
     grounded: bool
+    decision: Literal["approved", "rejected", "pending"] = "pending"
 
 
 class CoverLetterRead(BaseModel):
@@ -55,3 +57,17 @@ class CoverLetterSummary(BaseModel):
     label: str
     subject: str
     created_at: datetime
+
+
+class CoverLetterDecisionUpdate(BaseModel):
+    index: int = Field(ge=0)
+    decision: Literal["approved", "rejected", "pending"]
+
+
+class CoverLetterDecisions(BaseModel):
+    decisions: list[CoverLetterDecisionUpdate] = []
+
+
+class CoverLetterApplyRead(BaseModel):
+    body: str
+    removed_claims: list[str] = []

@@ -4,12 +4,16 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DbSession, GatewayDep
 from app.schemas.cover_letter import (
+    CoverLetterApplyRead,
+    CoverLetterDecisions,
     CoverLetterRead,
     CoverLetterRequest,
     CoverLetterReviseRequest,
     CoverLetterSummary,
 )
 from app.services.cover_letter_service import (
+    CoverLetterBlockedError,
+    CoverLetterClaimError,
     CoverLetterNotFoundError,
     CoverLetterService,
     build_cover_letter_service,
@@ -90,3 +94,34 @@ def delete_cover_letter(
         _service(db, gateway).delete(current_user, letter_id)
     except CoverLetterNotFoundError as exc:
         raise _not_found() from exc
+
+
+@router.post("/{letter_id}/decisions", response_model=CoverLetterRead)
+def set_cover_letter_decisions(
+    letter_id: uuid.UUID,
+    payload: CoverLetterDecisions,
+    current_user: CurrentUser,
+    db: DbSession,
+    gateway: GatewayDep,
+) -> CoverLetterRead:
+    try:
+        return _service(db, gateway).set_decisions(current_user, letter_id, payload)
+    except CoverLetterNotFoundError as exc:
+        raise _not_found() from exc
+    except CoverLetterClaimError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/{letter_id}/apply", response_model=CoverLetterApplyRead)
+def apply_cover_letter(
+    letter_id: uuid.UUID, current_user: CurrentUser, db: DbSession, gateway: GatewayDep
+) -> CoverLetterApplyRead:
+    try:
+        return _service(db, gateway).apply(current_user, letter_id)
+    except CoverLetterNotFoundError as exc:
+        raise _not_found() from exc
+    except CoverLetterBlockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Resolve ungrounded claims before applying",
+        ) from exc

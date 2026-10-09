@@ -218,3 +218,62 @@ def test_revise_and_delete_are_isolated_per_user(client: TestClient) -> None:
     assert (
         client.delete(f"/api/v1/cover-letters/{letter['id']}", headers=headers_b).status_code == 404
     )
+
+
+def test_decisions_gate_apply(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _upload_resume(client, headers)
+    job_id = _ingest(client, headers)
+    _use_cover_gateway()
+    letter = _generate(client, headers, job_id)
+    assert letter["blocked_count"] == 1
+
+    blocked = client.post(f"/api/v1/cover-letters/{letter['id']}/apply", headers=headers)
+    assert blocked.status_code == 409
+
+    decided = client.post(
+        f"/api/v1/cover-letters/{letter['id']}/decisions",
+        json={"decisions": [{"index": 1, "decision": "approved"}]},
+        headers=headers,
+    )
+    assert decided.status_code == 200
+    assert decided.json()["blocked_count"] == 0
+
+    applied = client.post(f"/api/v1/cover-letters/{letter['id']}/apply", headers=headers)
+    assert applied.status_code == 200
+    assert "I led work at Google." in applied.json()["body"]
+    assert applied.json()["removed_claims"] == []
+
+
+def test_apply_removes_rejected_claims(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _upload_resume(client, headers)
+    job_id = _ingest(client, headers)
+    _use_cover_gateway()
+    letter = _generate(client, headers, job_id)
+
+    client.post(
+        f"/api/v1/cover-letters/{letter['id']}/decisions",
+        json={"decisions": [{"index": 1, "decision": "rejected"}]},
+        headers=headers,
+    )
+    applied = client.post(f"/api/v1/cover-letters/{letter['id']}/apply", headers=headers)
+
+    assert applied.status_code == 200
+    assert "I led work at Google." not in applied.json()["body"]
+    assert applied.json()["removed_claims"] == ["I led work at Google."]
+
+
+def test_bad_decision_index_is_400(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _upload_resume(client, headers)
+    job_id = _ingest(client, headers)
+    _use_cover_gateway()
+    letter = _generate(client, headers, job_id)
+
+    response = client.post(
+        f"/api/v1/cover-letters/{letter['id']}/decisions",
+        json={"decisions": [{"index": 9, "decision": "approved"}]},
+        headers=headers,
+    )
+    assert response.status_code == 400
