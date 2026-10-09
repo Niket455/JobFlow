@@ -1,8 +1,9 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 8.1 (contacts CRM & outreach/referral drafts)**. Committed checkpoints:
-> Phase 0 + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, and 7.2. This
-> checkpoint adds the contacts CRM and grounded outreach/referral drafts.
+> Saved: end of **increment 8.2 (email & calendar integration)**. Committed checkpoints: Phase 0 +
+> 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, and 8.1. This checkpoint
+> adds the provider-abstracted email classification + status review queue and confirm-to-add
+> calendar suggestions.
 
 ## Where we are
 
@@ -27,7 +28,7 @@
 | Phase 7.1 — Interview kits, practice rubric feedback, STAR bank | ✅ complete |
 | Phase 7.2 — Skill-gap demand analysis, daily plan | ✅ complete |
 | Phase 8.1 — Contacts CRM, outreach/referral drafts | ✅ complete |
-| Phase 8.2 — Email + calendar integration (provider-abstracted) | ⏸️ not started |
+| Phase 8.2 — Email classification + calendar suggestions (provider-abstracted) | ✅ complete |
 | Phase 7.3 — Learning roadmap, Command Center | ⏸️ not started |
 | Phase 6.3 — Follow-ups, notification center | ⏸️ not started |
 | Semantic matching (embeddings / pgvector) | ⏸️ deferred |
@@ -41,10 +42,11 @@ backend/app/
 ├── models/          User, Profile, CareerGoal, DealBreakers, ResumeVersion, LLMUsage,
 │                    Company, Job, JobSource, FetchLog, JobAnalysis, Match,
 │                    Application, ApplicationEvent, Alert, AlertRun, TailorRun, CoverLetter,
-│                    InterviewKit, PracticeSession, StarStory, Contact, OutreachDraft
+│                    InterviewKit, PracticeSession, StarStory, Contact, OutreachDraft,
+│                    Integration, EmailMessage, CalendarSuggestion
 ├── schemas/         auth, profile, career_goal, deal_breakers, resume, job, job_analysis,
 │                    match, application, notification, alert, tailor, analytics,
-│                    cover_letter, ats, interview, insights, crm
+│                    cover_letter, ats, interview, insights, crm, integrations
 ├── repositories/    tenancy-scoped repos for every model above
 ├── services/        auth, profile, career_goal, deal_breakers, resume_parser, resume_renderer,
 │                    resume, url_canonicalizer, job_normalizer, dedupe, job_ingestion,
@@ -54,21 +56,22 @@ backend/app/
 │                    application_analytics, analytics, ats_analyzer, cover_letter,
 │                    answer_signals, interview_kit, practice, star_story,
 │                    skill_gap, skill_gap_service, daily_plan, daily_plan_service,
-│                    contact, outreach
+│                    contact, outreach, integration, email, calendar
 ├── adapters/        base (Fetcher/Adapter), robots (RobotsCache), user_url (HttpxFetcher),
 │                    greenhouse, lever, ashby, jsonld, mapping, http_json,
 │                    dispatch (DispatchFetcher), factory (build_fetcher)
+├── integrations/    base (InboxProvider), mock_inbox, gmail (flagged off), factory
 ├── gateway/         LLM gateway (providers: mock, openai) — complete + structured output
 ├── email/           base (EmailSender), console, recording, smtp, factory
 ├── prompts/         resume_extraction, job_analysis, tailor_resume, cover_letter,
-│                    interview_kit, answer_feedback, star_story, outreach (versioned)
+│                    interview_kit, answer_feedback, star_story, outreach, email_classify
 ├── workers/         celery_app + tasks (recheck_jobs, run_alerts)
 └── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, matches,
                      applications, notifications, alerts, tailor-runs, cover-letters,
                      interview-kits, practice-sessions, star-stories, insights, contacts,
-                     outreach-drafts, analytics
-backend/alembic/versions/  0001_initial … 0013_crm
-backend/tests/             211 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+                     outreach-drafts, integrations, emails, calendar-suggestions, analytics
+backend/alembic/versions/  0001_initial … 0014_email_calendar
+backend/tests/             228 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -88,6 +91,7 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Interview | `POST /interview-kits` · `GET /interview-kits?job_id=` · `GET /interview-kits/{id}` · `POST /practice-sessions` · `GET /practice-sessions` · `GET /practice-sessions/{id}` · `POST/GET /star-stories` · `GET/PUT/DELETE /star-stories/{id}` · `POST /star-stories/draft` |
 | Insights | `GET /skill-gap` · `GET /daily-plan` |
 | CRM | `POST/GET /contacts` · `GET/PUT/DELETE /contacts/{id}` · `POST/GET /outreach-drafts` · `GET /outreach-drafts/{id}` · `POST /outreach-drafts/{id}/send` |
+| Email/Cal | `POST/GET /integrations` · `DELETE /integrations/{id}` · `POST /integrations/{id}/sync` · `GET /emails?status=` · `GET /emails/{id}` · `POST /emails/{id}/suggest\|accept\|dismiss` · `POST/GET /calendar-suggestions` · `POST /calendar-suggestions/{id}/confirm\|dismiss` |
 | Alerts | `POST /alerts` · `GET /alerts` · `GET /alerts/{id}` · `PUT /alerts/{id}` · `DELETE /alerts/{id}` · `POST /alerts/{id}/preview` · `POST /alerts/{id}/run` · `GET /alerts/{id}/runs` · `POST /alerts/unsubscribe/{token}` |
 | Analytics | `GET /analytics/funnel` · `GET /analytics/rates` · `GET /analytics/rejections?by=source\|company\|role\|location\|resume_version\|month` |
 | Notifications | `POST /notifications/test` |
@@ -95,8 +99,11 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **211/211 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0013` apply cleanly to real Postgres (`alembic current` = `0013_crm`).
+- **228/228 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0014` apply cleanly to real Postgres (`alembic current` = `0014_email_calendar`).
+- Live smoke (8.2): connect a mock inbox integration → `POST /integrations/{id}/sync` classifies 3
+  messages into the review queue (re-sync is idempotent: 0 created / 3 skipped); confirm a calendar
+  suggestion; `provider="gmail"` connect returns 400 while `gmail_enabled` is off.
 - Live smoke (8.1): create a contact (private notes encrypt + round-trip) → generate an outreach draft
   → `POST /outreach-drafts/{id}/send` sets `status="sent"` and stamps the contact's `last_contacted_at`.
 - Live smoke (7.2): `GET /skill-gap` and `GET /daily-plan` return 200 with the expected shape and
@@ -137,14 +144,12 @@ celery -A app.workers.celery_app.celery_app beat
 
 ## Next steps (agreed order)
 
-1. **Email + calendar integration** (Phase 8.2) — `/integrations`, `/emails` (+ `/emails/{id}/suggest`),
-   `/calendar-suggestions`; provider-abstracted (mock inbox, Gmail feature-flagged off until keys).
-2. **Learning roadmap + Command Center** (Phase 7.3) — roadmap linked to the daily plan; Command
+1. **Learning roadmap + Command Center** (Phase 7.3) — roadmap linked to the daily plan; Command
    Center aggregating goal/funnel/today/insight with evidence links.
-3. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
-4. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
-5. Deferred: embeddings/pgvector semantic match sub-score; resume-specific matching; frontend &
-   browser extension.
+2. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
+3. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
+4. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
+   sub-score; resume-specific matching; frontend & browser extension.
 
 ## Open follow-ups
 

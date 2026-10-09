@@ -4,16 +4,16 @@ Full-lifecycle job-search platform (human-in-the-loop; not an auto-apply bot).
 
 See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 
-> Current status: **increments 0 → 8.1** plus the **Greenhouse/Lever/Ashby ATS source adapters** —
+> Current status: **increments 0 → 8.2** plus the **Greenhouse/Lever/Ashby ATS source adapters** —
 > auth, profile/career goal/deal-breakers, resume upload/parse/versioning + ATS-safe export,
 > Greenhouse/Lever/Ashby + user-URL job ingestion with dedupe, lifecycle expiry re-checks, LLM job
 > analysis, deterministic match scoring, an event-sourced application tracker, an email notification
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded versioned cover
 > letters, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric feedback
 > + a STAR bank, skill-gap demand analysis + a daily plan, a contacts CRM + grounded
-> outreach/referral drafts, scheduled (idempotent digest) alerts, and application analytics &
-> rejection intelligence. Frontend and browser extension are not started.
-> See `docs/STATUS.md` for the checkpoint.
+> outreach/referral drafts, provider-abstracted email classification + calendar suggestions, scheduled
+> (idempotent digest) alerts, and application analytics & rejection intelligence. Frontend and browser
+> extension are not started. See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
 
@@ -56,7 +56,7 @@ Interactive API docs: http://localhost:8000/docs
 
 ```bash
 cd backend
-alembic upgrade head        # apply migrations 0001..0013
+alembic upgrade head        # apply migrations 0001..0014
 alembic revision --autogenerate -m "your change"
 ```
 
@@ -98,6 +98,10 @@ mypy app                     # type check
 - CRM: `POST/GET /api/v1/contacts` · `GET/PUT/DELETE /api/v1/contacts/{id}` ·
   `POST/GET /api/v1/outreach-drafts` · `GET /api/v1/outreach-drafts/{id}` ·
   `POST /api/v1/outreach-drafts/{id}/send`
+- Email/Cal: `POST/GET /api/v1/integrations` · `DELETE /api/v1/integrations/{id}` ·
+  `POST /api/v1/integrations/{id}/sync` · `GET /api/v1/emails?status=` · `GET /api/v1/emails/{id}` ·
+  `POST /api/v1/emails/{id}/suggest|accept|dismiss` · `POST/GET /api/v1/calendar-suggestions` ·
+  `POST /api/v1/calendar-suggestions/{id}/confirm|dismiss`
 - Alerts: `POST/GET /api/v1/alerts` · `GET/PUT/DELETE /api/v1/alerts/{id}` ·
   `POST /api/v1/alerts/{id}/preview` · `POST /api/v1/alerts/{id}/run` ·
   `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`
