@@ -11,9 +11,10 @@ See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded versioned cover
 > letters, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric feedback
 > + a STAR bank, skill-gap demand analysis + a daily plan (with a learning roadmap), a Command Center,
-> a contacts CRM + grounded outreach/referral drafts, provider-abstracted email classification +
-> calendar suggestions, scheduled (idempotent digest) alerts, and application analytics & rejection
-> intelligence. Frontend and browser extension are not started. See `docs/STATUS.md` for the checkpoint.
+> a contacts CRM + grounded outreach/referral drafts, a follow-ups view + a persisted in-app
+> notification center, provider-abstracted email classification + calendar suggestions, scheduled
+> (idempotent digest) alerts, and application analytics & rejection intelligence. Frontend and browser
+> extension are not started. See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
 
@@ -56,7 +57,7 @@ Interactive API docs: http://localhost:8000/docs
 
 ```bash
 cd backend
-alembic upgrade head        # apply migrations 0001..0014
+alembic upgrade head        # apply migrations 0001..0015
 alembic revision --autogenerate -m "your change"
 ```
 
@@ -97,8 +98,8 @@ mypy app                     # type check
 - Insights: `GET /api/v1/skill-gap` · `GET /api/v1/learning-roadmap` · `GET /api/v1/daily-plan`
 - Command Center: `GET /api/v1/command-center`
 - CRM: `POST/GET /api/v1/contacts` · `GET/PUT/DELETE /api/v1/contacts/{id}` ·
-  `POST/GET /api/v1/outreach-drafts` · `GET /api/v1/outreach-drafts/{id}` ·
-  `POST /api/v1/outreach-drafts/{id}/send`
+  `GET /api/v1/follow-ups` · `POST/GET /api/v1/outreach-drafts` ·
+  `GET /api/v1/outreach-drafts/{id}` · `POST /api/v1/outreach-drafts/{id}/send`
 - Email/Cal: `POST/GET /api/v1/integrations` · `DELETE /api/v1/integrations/{id}` ·
   `POST /api/v1/integrations/{id}/sync` · `GET /api/v1/emails?status=` · `GET /api/v1/emails/{id}` ·
   `POST /api/v1/emails/{id}/suggest|accept|dismiss` · `POST/GET /api/v1/calendar-suggestions` ·
@@ -107,7 +108,10 @@ mypy app                     # type check
   `POST /api/v1/alerts/{id}/preview` · `POST /api/v1/alerts/{id}/run` ·
   `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`
 - Analytics: `GET /api/v1/analytics/funnel` · `/rates` · `/rejections?by=source|company|role|location|resume_version|month`
-- Notifications: `POST /api/v1/notifications/test`
+- Notifications: `POST /api/v1/notifications/test` · `GET /api/v1/notifications?unread=` ·
+  `GET /api/v1/notifications/unread-count` · `POST /api/v1/notifications/refresh` ·
+  `POST /api/v1/notifications/read-all` · `POST /api/v1/notifications/{id}/read` ·
+  `DELETE /api/v1/notifications/{id}`
 
 ## LLM gateway
 
