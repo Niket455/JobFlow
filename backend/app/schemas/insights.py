@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 from pydantic import BaseModel
 
@@ -41,3 +42,20 @@ class LearningItem(BaseModel):
 class LearningRoadmap(BaseModel):
     items: list[LearningItem] = []
     total_jobs: int
+
+
+class WeeklyActivity(BaseModel):
+    applied: int = 0
+    interview: int = 0
+    offer: int = 0
+    rejected: int = 0
+    withdrawn: int = 0
+
+
+class WeeklyReview(BaseModel):
+    period_start: date
+    period_end: date
+    activity: WeeklyActivity
+    follow_ups_due: int = 0
+    top_gap: SkillDemand | None = None
+    priorities: list[PlanItem] = []

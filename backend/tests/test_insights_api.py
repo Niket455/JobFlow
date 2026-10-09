@@ -79,6 +79,7 @@ def test_skill_gap_is_isolated_per_user(client: TestClient) -> None:
 
 def test_daily_plan_requires_auth(client: TestClient) -> None:
     assert client.get("/api/v1/daily-plan").status_code == 401
+    assert client.get("/api/v1/weekly-review").status_code == 401
 
 
 def test_daily_plan_review_and_learning(client: TestClient, db_session: Session) -> None:
@@ -157,3 +158,23 @@ def test_skill_gap_ignores_non_active_jobs(client: TestClient, db_session: Sessi
 
     report = client.get("/api/v1/skill-gap", headers=headers).json()
     assert report["total_jobs"] == 0
+
+
+def test_weekly_review_summarizes_activity(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    job_id = _ingest(client, headers)
+    application = client.post(
+        "/api/v1/applications", json={"job_id": job_id}, headers=headers
+    ).json()
+    client.post(
+        f"/api/v1/applications/{application['id']}/events",
+        json={"type": "applied"},
+        headers=headers,
+    )
+
+    review = client.get("/api/v1/weekly-review", headers=headers).json()
+
+    assert review["activity"]["applied"] >= 1
+    assert review["period_start"] <= review["period_end"]
+    assert review["follow_ups_due"] == 0
+    assert "priorities" in review
