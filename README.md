@@ -10,8 +10,8 @@ See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 > Greenhouse/Lever/Ashby/SmartRecruiters + user-URL job ingestion with dedupe, a leads
 > (New→Queued→Captured→Dismissed) discovery layer (RSS/Atom feeds + a feature-flagged Google-PSE
 > source with a daily quota + 24 h query cache), lifecycle expiry re-checks, LLM job analysis,
-> deterministic match scoring, an event-sourced application
-> tracker, an email notification
+> deterministic match scoring (non-Active jobs never recommended), an event-sourced application
+> tracker with bookmarklet/paste-URL capture, an email notification
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded cover letters with
 > revision lineage, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric
 > feedback
@@ -89,8 +89,8 @@ mypy app                     # type check
   `GET /api/v1/resumes/{id}/export?format=pdf|docx` · `POST /api/v1/resumes/{id}/tailor` ·
   `GET /api/v1/resumes/{id}/ats-report?job_id=`
 - Jobs: `POST /api/v1/jobs` (paste a URL; Greenhouse/Lever/Ashby/SmartRecruiters use their public
-  APIs) ·
-  `GET /api/v1/jobs` · `GET /api/v1/jobs/{id}` ·
+  APIs) · `POST /api/v1/jobs/capture` (paste a URL; create/update the job + start an application) ·
+  `GET /api/v1/jobs?status=` · `GET /api/v1/jobs/{id}` ·
   `/sources` · `POST /{id}/refresh` · `POST /{id}/analyze` · `GET /{id}/analysis` · `POST /{id}/match`
 - Leads: `POST/GET /api/v1/discovery-sources` · `DELETE /api/v1/discovery-sources/{id}` ·
   `POST /api/v1/discovery-sources/{id}/run` · `GET /api/v1/leads?status=` · `GET /api/v1/leads/{id}` ·

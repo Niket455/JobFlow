@@ -1,12 +1,11 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 2.6 (leads & discovery)** plus a **gap-closure pass**. Committed
-> checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3,
-> 8.1, 8.2, 6.3, and 2.5. The 2.6 checkpoint added the leads (New→Queued→Captured→Dismissed) lifecycle,
-> per-user RSS/Atom + Google-PSE discovery sources with a Celery-beat poll, and the Redis-backed quota
-> guard + 24 h query cache (completing Phase 2). This pass closes follow-up gaps: cover-letter version
-> lineage + list filter/pagination + delete, the skill-gap marginal-coverage gain, and Celery-beat
-> notification auto-refresh.
+> Saved: end of **Phase 3.2 (bookmarklet capture + non-Active guards)**. Committed checkpoints: Phase 0
+> + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, 2.5,
+> 2.6, and the gap-closure pass. This checkpoint adds the bookmarklet / paste-URL capture that
+> creates/updates a job and starts an application (idempotent; Saved by default, Applied when
+> `applied_at` is given), and the guards that keep non-Active jobs out of every recommendation surface
+> — completing Phase 3 (Matching, Lifecycle & Bookmarklet Apply).
 
 ## Where we are
 
@@ -24,6 +23,7 @@
 | Phase 2.5 — SmartRecruiters ATS source adapter | ✅ complete |
 | Phase 2.6 — Leads lifecycle + RSS/Atom & Google-PSE discovery sources | ✅ complete |
 | Phase 3.1 — Deterministic match scoring | ✅ complete |
+| Phase 3.2 — Bookmarklet capture + non-Active recommendation guards | ✅ complete |
 | Phase 4.1 — Application tracker (event-sourced) | ✅ complete |
 | Phase 4.2 — Email notifications (transport) | ✅ complete |
 | Phase 5.1 — Resume tailoring (fact-grounding + diff/apply) | ✅ complete |
@@ -96,7 +96,7 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Auth | `POST /auth/register` · `/login` · `/refresh` · `GET /auth/me` |
 | Profile | `GET/PUT /profile`, `GET/PUT /career-goals`, `GET/PUT /deal-breakers` |
 | Resumes | `POST /resumes` (upload) · `GET /resumes` · `GET /resumes/{id}` · `GET /resumes/{id}/export?format=pdf\|docx` · `POST /resumes/{id}/tailor` · `GET /resumes/{id}/ats-report?job_id=` |
-| Jobs | `POST /jobs` (paste URL — Greenhouse/Lever/Ashby/SmartRecruiters URLs use their public APIs) · `GET /jobs` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
+| Jobs | `POST /jobs` (paste URL — ATS URLs use their public APIs) · `POST /jobs/capture` (create/update a job + start an application) · `GET /jobs?status=` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
 | Leads | `POST/GET /discovery-sources` · `DELETE /discovery-sources/{id}` · `POST /discovery-sources/{id}/run` · `GET /leads?status=` · `GET /leads/{id}` · `POST /leads/{id}/capture` · `POST /leads/{id}/dismiss` |
 | Matches | `GET /matches` · `GET /matches/{id}` · `POST /matches/recompute` |
 | Applications | `POST /applications` · `GET /applications` · `GET /applications/{id}` · `POST /applications/{id}/events` · `GET /applications/{id}/events` |
@@ -114,7 +114,7 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **274/274 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- **285/285 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
 - Migrations `0001` → `0016` apply cleanly to real Postgres (`alembic current` = `0016_leads`);
   2.6 adds `discovery_sources` + `leads` (2.5 added no tables — the SmartRecruiters adapter reuses
   `job_sources`/`fetch_log`). The gap-closure pass added no migration.
@@ -123,6 +123,11 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
   `SkillDemand` now carries `coverage_gain` (a missing skill's marginal coverage — its `jobs` count;
   0 for held skills); the `refresh_notifications` beat task auto-refreshes every active user's feed
   idempotently. Covered by unit + API tests.
+- Capture + guards: `POST /jobs/capture` ingests a URL and then starts an application idempotently
+  (201 create / 200 reuse; `applied_at` → `Applied`) — covered by an API test incl. 403 robots, 502
+  fetch, disabled-flag 403, per-user isolation, and a still-working `POST /applications` 409.
+  `GET /matches` and the skill-gap report now exclude non-Active jobs (a job flipped to `Expired` is
+  hidden from the matches list while `GET /matches/{id}` still returns it, and drops out of skill-gap).
 - Leads & discovery: RSS/Atom parsing and Google-PSE mapping unit-tested with `httpx.MockTransport`
   (incl. a PSE cache hit making one outbound call and the daily quota guard short-circuiting), plus E2E
   tests for the `New→Captured` / `New→Queued` capture transitions, per-user isolation, and the
@@ -184,13 +189,11 @@ celery -A app.workers.celery_app.celery_app beat
 
 1. **Enable Google-PSE** — provide `CAREERPILOT_GOOGLE_PSE_API_KEY` + `CAREERPILOT_GOOGLE_PSE_CX` and
    flip `CAREERPILOT_ENABLE_GOOGLE_PSE=true`; subscribe users to feeds/queries via `/discovery-sources`.
-2. **Phase 3 remainder** — bookmarklet / paste-URL capture into an application; non-Active jobs never
-   recommended.
-3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; notification email delivery;
-   embeddings/pgvector semantic match sub-score; resume-specific matching; analytics depth
-   (per-source/resume breakdowns + period filter); ATS report persistence; daily-plan weekly review;
-   follow-up snooze/mark; rejection reason taxonomy; A/B tests; personalized ranking; frontend &
-   browser extension.
+2. **Next batch** — analytics depth (per-source/resume breakdowns + period filter); ATS report
+   persistence; daily-plan weekly review; follow-up snooze/mark; rejection reason taxonomy;
+   notification email delivery. Larger: A/B tests + a resettable personalized-ranking layer.
+3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
+   sub-score; resume-specific matching; frontend & browser extension.
 
 ## Open follow-ups
 
