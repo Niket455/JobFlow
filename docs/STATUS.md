@@ -1,9 +1,8 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 8.2 (email & calendar integration)**. Committed checkpoints: Phase 0 +
-> 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, and 8.1. This checkpoint
-> adds the provider-abstracted email classification + status review queue and confirm-to-add
-> calendar suggestions.
+> Saved: end of **increment 7.3 (learning roadmap & Command Center)**. Committed checkpoints: Phase 0
+> + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 8.1, and 8.2. This
+> checkpoint adds the learning roadmap and the Command Center, finishing Phase 7.
 
 ## Where we are
 
@@ -29,7 +28,7 @@
 | Phase 7.2 — Skill-gap demand analysis, daily plan | ✅ complete |
 | Phase 8.1 — Contacts CRM, outreach/referral drafts | ✅ complete |
 | Phase 8.2 — Email classification + calendar suggestions (provider-abstracted) | ✅ complete |
-| Phase 7.3 — Learning roadmap, Command Center | ⏸️ not started |
+| Phase 7.3 — Learning roadmap, Command Center | ✅ complete |
 | Phase 6.3 — Follow-ups, notification center | ⏸️ not started |
 | Semantic matching (embeddings / pgvector) | ⏸️ deferred |
 | Frontend (Next.js) & browser extension | ⏸️ not started |
@@ -46,7 +45,7 @@ backend/app/
 │                    Integration, EmailMessage, CalendarSuggestion
 ├── schemas/         auth, profile, career_goal, deal_breakers, resume, job, job_analysis,
 │                    match, application, notification, alert, tailor, analytics,
-│                    cover_letter, ats, interview, insights, crm, integrations
+│                    cover_letter, ats, interview, insights, crm, integrations, command_center
 ├── repositories/    tenancy-scoped repos for every model above
 ├── services/        auth, profile, career_goal, deal_breakers, resume_parser, resume_renderer,
 │                    resume, url_canonicalizer, job_normalizer, dedupe, job_ingestion,
@@ -56,6 +55,7 @@ backend/app/
 │                    application_analytics, analytics, ats_analyzer, cover_letter,
 │                    answer_signals, interview_kit, practice, star_story,
 │                    skill_gap, skill_gap_service, daily_plan, daily_plan_service,
+│                    learning_roadmap, learning_roadmap_service, command_center,
 │                    contact, outreach, integration, email, calendar
 ├── adapters/        base (Fetcher/Adapter), robots (RobotsCache), user_url (HttpxFetcher),
 │                    greenhouse, lever, ashby, jsonld, mapping, http_json,
@@ -68,10 +68,10 @@ backend/app/
 ├── workers/         celery_app + tasks (recheck_jobs, run_alerts)
 └── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, matches,
                      applications, notifications, alerts, tailor-runs, cover-letters,
-                     interview-kits, practice-sessions, star-stories, insights, contacts,
-                     outreach-drafts, integrations, emails, calendar-suggestions, analytics
+                     interview-kits, practice-sessions, star-stories, insights, command-center,
+                     contacts, outreach-drafts, integrations, emails, calendar-suggestions, analytics
 backend/alembic/versions/  0001_initial … 0014_email_calendar
-backend/tests/             228 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+backend/tests/             234 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -89,7 +89,8 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Tailoring | `GET /tailor-runs/{id}` · `POST /tailor-runs/{id}/decisions` · `POST /tailor-runs/{id}/apply` |
 | Cover letters | `POST /cover-letters` (generate) · `GET /cover-letters` · `GET /cover-letters/{id}` |
 | Interview | `POST /interview-kits` · `GET /interview-kits?job_id=` · `GET /interview-kits/{id}` · `POST /practice-sessions` · `GET /practice-sessions` · `GET /practice-sessions/{id}` · `POST/GET /star-stories` · `GET/PUT/DELETE /star-stories/{id}` · `POST /star-stories/draft` |
-| Insights | `GET /skill-gap` · `GET /daily-plan` |
+| Insights | `GET /skill-gap` · `GET /learning-roadmap` · `GET /daily-plan` |
+| Command Center | `GET /command-center` |
 | CRM | `POST/GET /contacts` · `GET/PUT/DELETE /contacts/{id}` · `POST/GET /outreach-drafts` · `GET /outreach-drafts/{id}` · `POST /outreach-drafts/{id}/send` |
 | Email/Cal | `POST/GET /integrations` · `DELETE /integrations/{id}` · `POST /integrations/{id}/sync` · `GET /emails?status=` · `GET /emails/{id}` · `POST /emails/{id}/suggest\|accept\|dismiss` · `POST/GET /calendar-suggestions` · `POST /calendar-suggestions/{id}/confirm\|dismiss` |
 | Alerts | `POST /alerts` · `GET /alerts` · `GET /alerts/{id}` · `PUT /alerts/{id}` · `DELETE /alerts/{id}` · `POST /alerts/{id}/preview` · `POST /alerts/{id}/run` · `GET /alerts/{id}/runs` · `POST /alerts/unsubscribe/{token}` |
@@ -99,8 +100,12 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **228/228 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0014` apply cleanly to real Postgres (`alembic current` = `0014_email_calendar`).
+- **234/234 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0014` apply cleanly to real Postgres (`alembic current` = `0014_email_calendar`);
+  7.3 added no tables (roadmap + Command Center are computed on the fly).
+- Live smoke (7.3): `GET /learning-roadmap` and `GET /command-center` return 200 with the expected shape
+  (goal echoed, funnel/today/insight/counts present) and reject unauthenticated calls; the deterministic
+  folds are covered by pure unit + API tests.
 - Live smoke (8.2): connect a mock inbox integration → `POST /integrations/{id}/sync` classifies 3
   messages into the review queue (re-sync is idempotent: 0 created / 3 skipped); confirm a calendar
   suggestion; `provider="gmail"` connect returns 400 while `gmail_enabled` is off.
@@ -144,11 +149,9 @@ celery -A app.workers.celery_app.celery_app beat
 
 ## Next steps (agreed order)
 
-1. **Learning roadmap + Command Center** (Phase 7.3) — roadmap linked to the daily plan; Command
-   Center aggregating goal/funnel/today/insight with evidence links.
-2. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
-3. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
-4. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
+1. **Follow-ups + notification center** — CRM reminders on applications; a persisted in-app feed.
+2. **Phase 2 remainder** — SmartRecruiters/RSS adapters + Google-PSE discovery (feature-flagged).
+3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
    sub-score; resume-specific matching; frontend & browser extension.
 
 ## Open follow-ups
