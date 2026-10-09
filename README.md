@@ -17,12 +17,13 @@ See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 > interview kits + practice rubric
 > feedback
 > + a STAR bank, skill-gap demand analysis (with marginal-coverage gain) + a daily plan (with a
-> learning roadmap), a Command Center,
-> a contacts CRM + grounded outreach/referral drafts, a follow-ups view + a persisted in-app
+> learning roadmap) and a weekly review, a Command Center,
+> a contacts CRM + grounded outreach/referral drafts, a follow-ups view with snooze/mark-done + a
+> persisted in-app
 > notification center (auto-refreshed on a Celery-beat schedule), provider-abstracted email
 > classification + calendar suggestions, scheduled
 > (idempotent digest) alerts, and application analytics & rejection intelligence (funnel/rates with
-> per-dimension breakdowns + a period filter). Frontend and browser
+> per-dimension breakdowns + a period filter, and a rejection-reason breakdown). Frontend and browser
 > extension are not started. See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
@@ -111,10 +112,12 @@ mypy app                     # type check
   `POST/GET /api/v1/practice-sessions` · `GET /api/v1/practice-sessions/{id}` ·
   `POST/GET /api/v1/star-stories` · `GET/PUT/DELETE /api/v1/star-stories/{id}` ·
   `POST /api/v1/star-stories/draft`
-- Insights: `GET /api/v1/skill-gap` · `GET /api/v1/learning-roadmap` · `GET /api/v1/daily-plan`
+- Insights: `GET /api/v1/skill-gap` · `GET /api/v1/learning-roadmap` · `GET /api/v1/daily-plan` ·
+  `GET /api/v1/weekly-review`
 - Command Center: `GET /api/v1/command-center`
 - CRM: `POST/GET /api/v1/contacts` · `GET/PUT/DELETE /api/v1/contacts/{id}` ·
-  `GET /api/v1/follow-ups` · `POST/GET /api/v1/outreach-drafts` ·
+  `GET /api/v1/follow-ups` · `POST /api/v1/follow-ups/{id}/snooze` · `POST /api/v1/follow-ups/{id}/done` ·
+  `POST/GET /api/v1/outreach-drafts` ·
   `GET /api/v1/outreach-drafts/{id}` · `POST /api/v1/outreach-drafts/{id}/send`
 - Email/Cal: `POST/GET /api/v1/integrations` · `DELETE /api/v1/integrations/{id}` ·
   `POST /api/v1/integrations/{id}/sync` · `GET /api/v1/emails?status=` · `GET /api/v1/emails/{id}` ·
@@ -124,7 +127,8 @@ mypy app                     # type check
   `POST /api/v1/alerts/{id}/preview` · `POST /api/v1/alerts/{id}/run` ·
   `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`
 - Analytics: `GET /api/v1/analytics/funnel?by=&since=&until=` · `/rates?by=&since=&until=` ·
-  `/rejections?by=source|company|role|location|resume_version|month&since=&until=`
+  `/rejections?by=source|company|role|location|resume_version|month&since=&until=` ·
+  `/rejection-reasons`
 - Notifications: `POST /api/v1/notifications/test` · `GET /api/v1/notifications?unread=` ·
   `GET /api/v1/notifications/unread-count` · `POST /api/v1/notifications/refresh` ·
   `POST /api/v1/notifications/read-all` · `POST /api/v1/notifications/{id}/read` ·
