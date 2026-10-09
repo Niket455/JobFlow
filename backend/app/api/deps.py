@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Callable
 from functools import lru_cache
 from typing import Annotated
 
@@ -16,6 +17,8 @@ from app.email.base import EmailSender
 from app.email.factory import build_email_sender
 from app.gateway.factory import build_gateway
 from app.gateway.gateway import LLMGateway
+from app.integrations.base import InboxProvider
+from app.integrations.factory import build_inbox_provider
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 
@@ -44,10 +47,18 @@ def get_email_sender() -> EmailSender:
     return build_email_sender()
 
 
+@lru_cache
+def get_inbox_provider_factory() -> Callable[[str], InboxProvider]:
+    return build_inbox_provider
+
+
 StorageDep = Annotated[ObjectStorage, Depends(get_storage)]
 GatewayDep = Annotated[LLMGateway, Depends(get_gateway)]
 FetcherDep = Annotated[Fetcher, Depends(get_fetcher)]
 EmailSenderDep = Annotated[EmailSender, Depends(get_email_sender)]
+InboxProviderFactoryDep = Annotated[
+    Callable[[str], InboxProvider], Depends(get_inbox_provider_factory)
+]
 Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
 
 

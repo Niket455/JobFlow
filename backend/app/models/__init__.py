@@ -2,12 +2,15 @@ from app.models.alert import Alert
 from app.models.alert_run import AlertRun
 from app.models.application import Application
 from app.models.application_event import ApplicationEvent
+from app.models.calendar_suggestion import CalendarSuggestion
 from app.models.career_goal import CareerGoal
 from app.models.company import Company
 from app.models.contact import Contact
 from app.models.cover_letter import CoverLetter
 from app.models.deal_breakers import DealBreakers
+from app.models.email_message import EmailMessage
 from app.models.fetch_log import FetchLog
+from app.models.integration import Integration
 from app.models.interview_kit import InterviewKit
 from app.models.job import Job
 from app.models.job_analysis import JobAnalysis
@@ -27,12 +30,15 @@ __all__ = [
     "AlertRun",
     "Application",
     "ApplicationEvent",
+    "CalendarSuggestion",
     "CareerGoal",
     "Company",
     "Contact",
     "CoverLetter",
     "DealBreakers",
+    "EmailMessage",
     "FetchLog",
+    "Integration",
     "InterviewKit",
     "Job",
     "JobAnalysis",

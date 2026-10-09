@@ -5,11 +5,14 @@ from app.api.v1 import (
     analytics,
     applications,
     auth,
+    calendar_suggestions,
     career_goals,
     contacts,
     cover_letters,
     deal_breakers,
+    emails,
     insights,
+    integrations,
     interview_kits,
     jobs,
     matches,
@@ -41,4 +44,7 @@ api_router.include_router(star_stories.router)
 api_router.include_router(insights.router)
 api_router.include_router(contacts.router)
 api_router.include_router(outreach_drafts.router)
+api_router.include_router(integrations.router)
+api_router.include_router(emails.router)
+api_router.include_router(calendar_suggestions.router)
 api_router.include_router(analytics.router)

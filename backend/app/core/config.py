@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     smtp_timeout_seconds: float = 15.0
 
+    # Email/calendar integration. Gmail inbox stays off until read-only OAuth is implemented.
+    gmail_enabled: bool = False
+
     llm_provider: str = "openai"
     llm_default_model: str = "gpt-4o-mini"
     llm_cheap_model: str = "gpt-4o-mini"
