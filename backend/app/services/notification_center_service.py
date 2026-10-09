@@ -12,6 +12,7 @@ from app.repositories.email_message_repository import EmailMessageRepository
 from app.repositories.job_repository import JobRepository
 from app.repositories.match_repository import MatchRepository
 from app.repositories.notification_repository import NotificationRepository
+from app.repositories.user_repository import UserRepository
 from app.schemas.notifications import NotificationRead, RefreshResult
 from app.services.application_timeline import job_title, load_timeline
 from app.services.notification_center import derive_notifications
@@ -33,6 +34,7 @@ class NotificationCenterService:
         jobs: JobRepository,
         matches: MatchRepository,
         emails: EmailMessageRepository,
+        users: UserRepository,
         skills: SkillGapService,
     ) -> None:
         self.notifications = notifications
@@ -41,6 +43,7 @@ class NotificationCenterService:
         self.jobs = jobs
         self.matches = matches
         self.emails = emails
+        self.users = users
         self.skills = skills
 
     def refresh(self, user: User, *, now: datetime) -> RefreshResult:
@@ -108,6 +111,12 @@ class NotificationCenterService:
         self.notifications.commit()
         return RefreshResult(created=created, existing=existing)
 
+    def refresh_all(self, *, now: datetime, limit: int) -> int:
+        created = 0
+        for user in self.users.list_active(limit=limit):
+            created += self.refresh(user, now=now).created
+        return created
+
     def list_for_user(self, user: User, *, unread_only: bool, limit: int) -> list[NotificationRead]:
         return [
             NotificationRead.model_validate(notification)
@@ -149,5 +158,6 @@ def build_notification_center_service(db: Session) -> NotificationCenterService:
         JobRepository(db),
         MatchRepository(db),
         EmailMessageRepository(db),
+        UserRepository(db),
         build_skill_gap_service(db),
     )

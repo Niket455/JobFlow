@@ -7,6 +7,7 @@ class SkillDemand(BaseModel):
     skill: str
     jobs: int
     demand_pct: float
+    coverage_gain: int = 0
 
 
 class SkillGapReport(BaseModel):

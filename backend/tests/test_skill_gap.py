@@ -14,8 +14,10 @@ def test_demand_counts_and_split() -> None:
     missing = {item.skill: item for item in gap.missing}
     assert missing["Go"].jobs == 2
     assert missing["Go"].demand_pct == 66.7
+    assert missing["Go"].coverage_gain == 2  # marginal coverage: acquiring Go covers 2 postings
     assert missing["Rust"].jobs == 1
     assert missing["Rust"].demand_pct == 33.3
+    assert have["Python"].coverage_gain == 0  # already held → no new coverage
 
 
 def test_normalization_and_within_job_dedupe() -> None:

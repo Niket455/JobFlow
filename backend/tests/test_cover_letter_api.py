@@ -149,3 +149,72 @@ def test_letters_are_isolated_per_user(client: TestClient) -> None:
         headers=headers_b,
     )
     assert response.status_code == 404
+
+
+def test_list_filters_by_job_and_paginates(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _upload_resume(client, headers)
+    job_id = _ingest(client, headers)
+    _use_cover_gateway()
+    _generate(client, headers, job_id)
+
+    assert len(client.get(f"/api/v1/cover-letters?job_id={job_id}", headers=headers).json()) == 1
+    assert client.get(f"/api/v1/cover-letters?job_id={UNKNOWN}", headers=headers).json() == []
+    assert len(client.get("/api/v1/cover-letters?limit=1&offset=0", headers=headers).json()) == 1
+    assert client.get("/api/v1/cover-letters?offset=1", headers=headers).json() == []
+
+
+def test_revise_starts_a_new_version(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _upload_resume(client, headers)
+    job_id = _ingest(client, headers)
+    _use_cover_gateway()
+    original = _generate(client, headers, job_id)
+
+    response = client.post(
+        f"/api/v1/cover-letters/{original['id']}/revise",
+        json={"instructions": "Make it shorter"},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    revised = response.json()
+    assert revised["id"] != original["id"]
+    assert revised["parent_letter_id"] == original["id"]
+    assert revised["job_id"] == original["job_id"]
+    assert len(client.get("/api/v1/cover-letters", headers=headers).json()) == 2
+
+
+def test_revise_unknown_letter_is_404(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    response = client.post(f"/api/v1/cover-letters/{UNKNOWN}/revise", json={}, headers=headers)
+    assert response.status_code == 404
+
+
+def test_delete_letter(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _upload_resume(client, headers)
+    job_id = _ingest(client, headers)
+    _use_cover_gateway()
+    letter = _generate(client, headers, job_id)
+
+    assert (
+        client.delete(f"/api/v1/cover-letters/{letter['id']}", headers=headers).status_code == 204
+    )
+    assert client.get(f"/api/v1/cover-letters/{letter['id']}", headers=headers).status_code == 404
+    assert client.delete(f"/api/v1/cover-letters/{UNKNOWN}", headers=headers).status_code == 404
+
+
+def test_revise_and_delete_are_isolated_per_user(client: TestClient) -> None:
+    headers_a = _headers(client, USER_A)
+    _upload_resume(client, headers_a)
+    job_id = _ingest(client, headers_a)
+    _use_cover_gateway()
+    letter = _generate(client, headers_a, job_id)
+
+    headers_b = _headers(client, USER_B)
+    revise = client.post(f"/api/v1/cover-letters/{letter['id']}/revise", json={}, headers=headers_b)
+    assert revise.status_code == 404
+    assert (
+        client.delete(f"/api/v1/cover-letters/{letter['id']}", headers=headers_b).status_code == 404
+    )

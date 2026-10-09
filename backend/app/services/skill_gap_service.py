@@ -60,4 +60,9 @@ def build_skill_gap_service(db: Session) -> SkillGapService:
 
 
 def _demand(item: SkillDemand) -> SkillDemandRead:
-    return SkillDemandRead(skill=item.skill, jobs=item.jobs, demand_pct=item.demand_pct)
+    return SkillDemandRead(
+        skill=item.skill,
+        jobs=item.jobs,
+        demand_pct=item.demand_pct,
+        coverage_gain=item.coverage_gain,
+    )

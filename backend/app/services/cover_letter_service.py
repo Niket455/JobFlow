@@ -59,16 +59,47 @@ class CoverLetterService:
         self.model = model
 
     async def generate(self, user: User, payload: CoverLetterRequest) -> CoverLetterRead:
-        if payload.resume_version_id is not None:
-            record = self.resumes.get_for_user(user.id, payload.resume_version_id)
+        return await self._generate(
+            user,
+            job_id=payload.job_id,
+            resume_version_id=payload.resume_version_id,
+            instructions=payload.instructions,
+            parent_letter_id=None,
+        )
+
+    async def revise(
+        self, user: User, letter_id: uuid.UUID, instructions: str | None
+    ) -> CoverLetterRead:
+        parent = self.letters.get_for_user(user.id, letter_id)
+        if parent is None:
+            raise CoverLetterNotFoundError
+        return await self._generate(
+            user,
+            job_id=parent.job_id,
+            resume_version_id=parent.resume_version_id,
+            instructions=instructions,
+            parent_letter_id=parent.id,
+        )
+
+    async def _generate(
+        self,
+        user: User,
+        *,
+        job_id: uuid.UUID,
+        resume_version_id: uuid.UUID | None,
+        instructions: str | None,
+        parent_letter_id: uuid.UUID | None,
+    ) -> CoverLetterRead:
+        if resume_version_id is not None:
+            record = self.resumes.get_for_user(user.id, resume_version_id)
         else:
             records = self.resumes.list_for_user(user.id)
             record = records[-1] if records else None
         if record is None or record.parsed_enc is None:
             raise ResumeNotFoundError
 
-        job = self.jobs.get(payload.job_id)
-        if job is None or not self.sources.exists(payload.job_id, user.id):
+        job = self.jobs.get(job_id)
+        if job is None or not self.sources.exists(job_id, user.id):
             raise JobNotFoundError
 
         data_key = ensure_data_key(user, self.users)
@@ -81,7 +112,7 @@ class CoverLetterService:
             resume_json=profile.model_dump_json(),
             resume_text=resume_text or profile.model_dump_json(),
             job_text=context,
-            instructions=payload.instructions or "(none)",
+            instructions=instructions or "(none)",
         )
         draft = await self.gateway.complete_structured(
             [LLMMessage(role="user", content=prompt)], model=self.model, schema=CoverLetterDraft
@@ -100,6 +131,7 @@ class CoverLetterService:
             user_id=user.id,
             job_id=job.id,
             resume_version_id=record.id,
+            parent_letter_id=parent_letter_id,
             label=f"Cover letter — {job.title}",
             model=self.model,
             subject=draft.subject,
@@ -109,10 +141,14 @@ class CoverLetterService:
         self.letters.commit()
         return _to_read(letter, data_key)
 
-    def list_for_user(self, user: User) -> list[CoverLetterSummary]:
+    def list_for_user(
+        self, user: User, *, job_id: uuid.UUID | None, limit: int, offset: int
+    ) -> list[CoverLetterSummary]:
         return [
             CoverLetterSummary.model_validate(letter)
-            for letter in self.letters.list_for_user(user.id)
+            for letter in self.letters.list_for_user(
+                user.id, job_id=job_id, limit=limit, offset=offset
+            )
         ]
 
     def get(self, user: User, letter_id: uuid.UUID) -> CoverLetterRead:
@@ -121,6 +157,13 @@ class CoverLetterService:
             raise CoverLetterNotFoundError
         data_key = ensure_data_key(user, self.users)
         return _to_read(letter, data_key)
+
+    def delete(self, user: User, letter_id: uuid.UUID) -> None:
+        letter = self.letters.get_for_user(user.id, letter_id)
+        if letter is None:
+            raise CoverLetterNotFoundError
+        self.letters.delete(letter)
+        self.letters.commit()
 
 
 def build_cover_letter_service(db: Session, gateway: LLMGateway) -> CoverLetterService:
@@ -142,6 +185,7 @@ def _to_read(letter: CoverLetter, data_key: str) -> CoverLetterRead:
         id=letter.id,
         job_id=letter.job_id,
         resume_version_id=letter.resume_version_id,
+        parent_letter_id=letter.parent_letter_id,
         label=letter.label,
         model=letter.model,
         subject=letter.subject,

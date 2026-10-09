@@ -12,6 +12,7 @@ class SkillDemand:
     skill: str
     jobs: int
     demand_pct: float
+    coverage_gain: int = 0
 
 
 @dataclass(frozen=True)
@@ -62,12 +63,25 @@ def analyze_skill_gap(have: list[str], jobs: list[list[str]]) -> SkillGap:
     have_out: list[SkillDemand] = []
     missing_out: list[SkillDemand] = []
     for key, entry in counts.items():
-        demand = SkillDemand(
-            skill=entry.label,
-            jobs=entry.jobs,
-            demand_pct=round(100 * entry.jobs / total, 1) if total else 0.0,
-        )
-        (have_out if key in have_keys else missing_out).append(demand)
+        demand_pct = round(100 * entry.jobs / total, 1) if total else 0.0
+        if key in have_keys:
+            have_out.append(
+                SkillDemand(
+                    skill=entry.label,
+                    jobs=entry.jobs,
+                    demand_pct=demand_pct,
+                    coverage_gain=0,
+                )
+            )
+        else:
+            missing_out.append(
+                SkillDemand(
+                    skill=entry.label,
+                    jobs=entry.jobs,
+                    demand_pct=demand_pct,
+                    coverage_gain=entry.jobs,
+                )
+            )
 
     return SkillGap(
         total_jobs=total,

@@ -10,6 +10,7 @@ from app.repositories.job_source_repository import JobSourceRepository
 from app.services.alert_service import build_alert_service
 from app.services.discovery_service import build_discovery_service
 from app.services.job_refresh_service import JobRefreshService
+from app.services.notification_center_service import build_notification_center_service
 from app.workers.celery_app import celery_app
 
 
@@ -48,5 +49,18 @@ def discover_leads() -> int:
         runtime = build_discovery_runtime()
         service = build_discovery_service(session, source_factory=runtime.source)
         return service.run_due(now=datetime.now(UTC), limit=settings.lead_discovery_batch_size)
+    finally:
+        session.close()
+
+
+@celery_app.task(name="app.workers.tasks.refresh_notifications")
+def refresh_notifications() -> int:
+    """Refresh the in-app notification feed for active users. Returns notifications created."""
+    session = SessionLocal()
+    try:
+        service = build_notification_center_service(session)
+        return service.refresh_all(
+            now=datetime.now(UTC), limit=settings.notification_refresh_batch_size
+        )
     finally:
         session.close()

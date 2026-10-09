@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     alert_run_interval_minutes: int = 15
     alerts_batch_size: int = 100
 
+    # Notification center auto-refresh (Celery beat).
+    notification_refresh_interval_minutes: int = 60
+    notification_refresh_batch_size: int = 200
+
     # Analytics: minimum segment size before a rate is reported (below it, value is null).
     analytics_min_sample: int = 5
 

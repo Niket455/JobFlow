@@ -13,6 +13,13 @@ class UserRepository(BaseRepository):
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return self.db.get(User, user_id)
 
+    def list_active(self, *, limit: int) -> list[User]:
+        return list(
+            self.db.scalars(
+                select(User).where(User.is_active.is_(True)).order_by(User.created_at).limit(limit)
+            )
+        )
+
     def create(self, email: str, password_hash: str, wrapped_data_key: str) -> User:
         user = User(
             email=email,

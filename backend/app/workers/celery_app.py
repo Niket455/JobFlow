@@ -25,5 +25,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.discover_leads",
             "schedule": settings.lead_discovery_interval_minutes * 60,
         },
+        "refresh-notifications": {
+            "task": "app.workers.tasks.refresh_notifications",
+            "schedule": settings.notification_refresh_interval_minutes * 60,
+        },
     },
 )

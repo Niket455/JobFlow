@@ -21,6 +21,10 @@ class CoverLetterRequest(BaseModel):
     instructions: str | None = None
 
 
+class CoverLetterReviseRequest(BaseModel):
+    instructions: str | None = None
+
+
 class CoverLetterClaimRead(BaseModel):
     text: str
     source_span: str | None = None
@@ -33,6 +37,7 @@ class CoverLetterRead(BaseModel):
     id: uuid.UUID
     job_id: uuid.UUID
     resume_version_id: uuid.UUID | None = None
+    parent_letter_id: uuid.UUID | None = None
     label: str
     model: str
     subject: str
