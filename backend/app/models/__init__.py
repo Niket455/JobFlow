@@ -2,6 +2,7 @@ from app.models.alert import Alert
 from app.models.alert_run import AlertRun
 from app.models.application import Application
 from app.models.application_event import ApplicationEvent
+from app.models.ats_report import AtsReportRecord
 from app.models.calendar_suggestion import CalendarSuggestion
 from app.models.career_goal import CareerGoal
 from app.models.company import Company
@@ -33,6 +34,7 @@ __all__ = [
     "AlertRun",
     "Application",
     "ApplicationEvent",
+    "AtsReportRecord",
     "CalendarSuggestion",
     "CareerGoal",
     "Company",

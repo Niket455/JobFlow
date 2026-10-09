@@ -4,6 +4,7 @@ from app.api.v1 import (
     alerts,
     analytics,
     applications,
+    ats_reports,
     auth,
     calendar_suggestions,
     career_goals,
@@ -35,6 +36,7 @@ api_router.include_router(profile.router)
 api_router.include_router(career_goals.router)
 api_router.include_router(deal_breakers.router)
 api_router.include_router(resumes.router)
+api_router.include_router(ats_reports.router)
 api_router.include_router(jobs.router)
 api_router.include_router(leads.router)
 api_router.include_router(discovery_sources.router)
