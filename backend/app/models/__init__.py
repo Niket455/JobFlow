@@ -12,6 +12,7 @@ from app.models.deal_breakers import DealBreakers
 from app.models.discovery_source import DiscoverySource
 from app.models.email_message import EmailMessage
 from app.models.fetch_log import FetchLog
+from app.models.follow_up_state import FollowUpState
 from app.models.integration import Integration
 from app.models.interview_kit import InterviewKit
 from app.models.job import Job
@@ -44,6 +45,7 @@ __all__ = [
     "DiscoverySource",
     "EmailMessage",
     "FetchLog",
+    "FollowUpState",
     "Integration",
     "InterviewKit",
     "Job",

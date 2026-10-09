@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 Relationship = Literal["recruiter", "referral", "hiring_manager", "other"]
 OutreachKind = Literal["referral", "recruiter", "followup"]
@@ -121,3 +121,15 @@ class FollowUpItem(BaseModel):
 class FollowUpList(BaseModel):
     items: list[FollowUpItem] = []
     generated_from: dict[str, int] = {}
+
+
+class FollowUpSnoozeRequest(BaseModel):
+    days: int = Field(default=7, ge=1, le=90)
+
+
+class FollowUpStateRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    application_id: uuid.UUID
+    snoozed_until: datetime | None = None
+    followed_up_at: datetime | None = None
