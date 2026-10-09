@@ -7,6 +7,7 @@ from app.api.v1 import (
     auth,
     calendar_suggestions,
     career_goals,
+    command_center,
     contacts,
     cover_letters,
     deal_breakers,
@@ -42,6 +43,7 @@ api_router.include_router(interview_kits.router)
 api_router.include_router(practice.router)
 api_router.include_router(star_stories.router)
 api_router.include_router(insights.router)
+api_router.include_router(command_center.router)
 api_router.include_router(contacts.router)
 api_router.include_router(outreach_drafts.router)
 api_router.include_router(integrations.router)

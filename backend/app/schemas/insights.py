@@ -27,3 +27,16 @@ class PlanItem(BaseModel):
 class DailyPlan(BaseModel):
     items: list[PlanItem] = []
     generated_from: dict[str, int] = {}
+
+
+class LearningItem(BaseModel):
+    skill: str
+    priority: int
+    demand_pct: float
+    jobs: int
+    rationale: str
+
+
+class LearningRoadmap(BaseModel):
+    items: list[LearningItem] = []
+    total_jobs: int

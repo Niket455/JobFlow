@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -14,15 +14,18 @@ from app.repositories.match_repository import MatchRepository
 from app.schemas.insights import DailyPlan
 from app.services.application_status import StatusEvent, derive
 from app.services.daily_plan import ApplicationCandidate, MatchCandidate, build_daily_plan
-from app.services.skill_gap_service import SkillGapService, build_skill_gap_service
+from app.services.learning_roadmap_service import (
+    LearningRoadmapService,
+    build_learning_roadmap_service,
+)
 
 
 class DailyPlanService:
-    """Deterministic 'today' plan derived from matches, applications, and skill gaps."""
+    """Deterministic 'today' plan derived from matches, applications, and the learning roadmap."""
 
     def __init__(
         self,
-        skill_gap: SkillGapService,
+        learning: LearningRoadmapService,
         matches: MatchRepository,
         applications: ApplicationRepository,
         events: ApplicationEventRepository,
@@ -31,7 +34,7 @@ class DailyPlanService:
         follow_up_days: int,
         max_items: int,
     ) -> None:
-        self.skill_gap = skill_gap
+        self.learning = learning
         self.matches = matches
         self.applications = applications
         self.events = events
@@ -40,7 +43,7 @@ class DailyPlanService:
         self.max_items = max_items
 
     def plan(self, user: User, *, now: datetime) -> DailyPlan:
-        gap = self.skill_gap.report(user)
+        roadmap = self.learning.roadmap(user)
         eligible = self.matches.list_eligible(
             user.id, min_overall=settings.strong_match_threshold, since=None
         )
@@ -71,7 +74,7 @@ class DailyPlanService:
             )
             for application in applications
         ]
-        skills = [item.skill for item in gap.missing[:3]]
+        skills = [item.skill for item in roadmap.items[:3]]
         items = build_daily_plan(
             matches=matches,
             applications=candidates,
@@ -82,17 +85,17 @@ class DailyPlanService:
         return DailyPlan(
             items=items,
             generated_from={
-                "tracked_jobs": gap.total_jobs,
+                "tracked_jobs": roadmap.total_jobs,
                 "strong_matches": len(matches),
                 "applications": len(applications),
-                "gaps": len(gap.missing),
+                "gaps": len(roadmap.items),
             },
         )
 
 
 def build_daily_plan_service(db: Session) -> DailyPlanService:
     return DailyPlanService(
-        build_skill_gap_service(db),
+        build_learning_roadmap_service(db),
         MatchRepository(db),
         ApplicationRepository(db),
         ApplicationEventRepository(db),
@@ -113,6 +116,8 @@ def _status(events: list[ApplicationEvent]) -> str:
 def _days(updated_at: datetime | None, now: datetime) -> int:
     if updated_at is None:
         return 0
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=UTC)
     return max(0, (now - updated_at).days)
 
 
