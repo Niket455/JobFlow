@@ -5,6 +5,19 @@ from app.services.application_status import STAGE_BY_EVENT
 _STAGE_RANK = {"Saved": 0, "Applied": 1, "Interview": 2, "Offer": 3}
 _STAGE_LABEL = {rank: label for label, rank in _STAGE_RANK.items()}
 _FUNNEL_KEYS = ("saved", "applied", "interview", "offer", "rejected", "withdrawn")
+UNCATEGORIZED = "uncategorized"
+REJECTION_REASON_CATALOG = (
+    "no_response",
+    "rejected_after_interview",
+    "skills_mismatch",
+    "overqualified",
+    "underqualified",
+    "location",
+    "salary",
+    "position_closed",
+    "withdrawn",
+    "other",
+)
 
 
 @dataclass(frozen=True)
@@ -82,6 +95,21 @@ def rates(rows: list[ApplicationRow], min_sample: int) -> dict[str, RateMetric]:
         "offer": _rate(offer, applied_count, min_sample),
         "offer_from_interview": _rate(offer, interview, min_sample),
     }
+
+
+def rejection_reasons(rows: list[ApplicationRow]) -> dict[str, int]:
+    """Count rejection reasons across rejected rows; rows without one are uncategorized."""
+    counts: dict[str, int] = {}
+    for row in rows:
+        if row.status != "Rejected":
+            continue
+        reasons = {reason for reason in row.reasons if reason}
+        if not reasons:
+            counts[UNCATEGORIZED] = counts.get(UNCATEGORIZED, 0) + 1
+            continue
+        for reason in reasons:
+            counts[reason] = counts.get(reason, 0) + 1
+    return counts
 
 
 def group_by(rows: list[ApplicationRow], by: str) -> dict[str, list[ApplicationRow]]:

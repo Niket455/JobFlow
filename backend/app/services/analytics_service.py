@@ -16,6 +16,8 @@ from app.schemas.analytics import (
     RatesBucket,
     RatesRead,
     RejectionBucket,
+    RejectionReasonCount,
+    RejectionReasonsRead,
     RejectionsRead,
     StageCount,
 )
@@ -110,6 +112,18 @@ class AnalyticsService:
             ],
             stages=report.stages,
             reasons=report.reasons,
+        )
+
+    def rejection_reasons(self, user: User) -> RejectionReasonsRead:
+        rows = self._rows(user)
+        counts = agg.rejection_reasons(rows)
+        uncategorized = counts.pop(agg.UNCATEGORIZED, 0)
+        ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        return RejectionReasonsRead(
+            total_rejected=sum(1 for row in rows if row.status == "Rejected"),
+            catalog=list(agg.REJECTION_REASON_CATALOG),
+            reasons=[RejectionReasonCount(reason=reason, count=count) for reason, count in ordered],
+            uncategorized=uncategorized,
         )
 
     def _rows(

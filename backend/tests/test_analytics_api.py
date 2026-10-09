@@ -34,6 +34,7 @@ def test_requires_auth(client: TestClient) -> None:
     assert client.get("/api/v1/analytics/funnel").status_code == 401
     assert client.get("/api/v1/analytics/rates").status_code == 401
     assert client.get("/api/v1/analytics/rejections").status_code == 401
+    assert client.get("/api/v1/analytics/rejection-reasons").status_code == 401
 
 
 def test_funnel_and_rates(client: TestClient) -> None:
@@ -143,3 +144,22 @@ def test_period_filter_limits_the_funnel(client: TestClient) -> None:
         "/api/v1/analytics/funnel?since=2025-12-01&until=2026-03-01", headers=headers
     ).json()
     assert filtered["total"] == 1
+
+
+def test_rejection_reasons_breakdown(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _apply(
+        client,
+        headers,
+        DE_URL,
+        events=({"type": "applied"}, {"type": "rejected", "payload": {"reason": "no_response"}}),
+    )
+    _apply(client, headers, REMOTE_URL, events=({"type": "applied"}, {"type": "rejected"}))
+
+    report = client.get("/api/v1/analytics/rejection-reasons", headers=headers).json()
+
+    assert report["total_rejected"] == 2
+    assert "no_response" in report["catalog"]
+    counts = {item["reason"]: item["count"] for item in report["reasons"]}
+    assert counts["no_response"] == 1
+    assert report["uncategorized"] == 1

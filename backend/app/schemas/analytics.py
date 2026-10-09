@@ -57,3 +57,15 @@ class RejectionsRead(BaseModel):
     buckets: list[RejectionBucket] = []
     stages: dict[str, int] = {}
     reasons: list[str] = []
+
+
+class RejectionReasonCount(BaseModel):
+    reason: str
+    count: int
+
+
+class RejectionReasonsRead(BaseModel):
+    total_rejected: int
+    catalog: list[str] = []
+    reasons: list[RejectionReasonCount] = []
+    uncategorized: int = 0
