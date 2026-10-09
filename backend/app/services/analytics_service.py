@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -8,8 +10,10 @@ from app.repositories.application_repository import ApplicationRepository
 from app.repositories.company_repository import CompanyRepository
 from app.repositories.job_repository import JobRepository
 from app.schemas.analytics import (
+    FunnelBucket,
     FunnelRead,
     RateMetric,
+    RatesBucket,
     RatesRead,
     RejectionBucket,
     RejectionsRead,
@@ -19,7 +23,8 @@ from app.services import application_analytics as agg
 from app.services.application_status import StatusEvent, derive
 
 FUNNEL_ORDER = ("saved", "applied", "interview", "offer", "rejected", "withdrawn")
-REJECTION_DIMENSIONS = ("source", "company", "role", "location", "resume_version", "month")
+BREAKDOWN_DIMENSIONS = ("source", "company", "role", "location", "resume_version", "month")
+REJECTION_DIMENSIONS = BREAKDOWN_DIMENSIONS
 
 
 class AnalyticsService:
@@ -37,23 +42,59 @@ class AnalyticsService:
         self.jobs = jobs
         self.companies = companies
 
-    def funnel(self, user: User) -> FunnelRead:
-        rows = self._rows(user)
-        counts = agg.funnel(rows)
-        stages = [StageCount(stage=key, count=counts[key]) for key in FUNNEL_ORDER]
-        return FunnelRead(stages=stages, total=len(rows))
+    def funnel(
+        self,
+        user: User,
+        *,
+        by: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> FunnelRead:
+        rows = self._rows(user, since=since, until=until)
+        buckets: list[FunnelBucket] = []
+        if by is not None:
+            buckets = [
+                FunnelBucket(key=key, total=len(group), stages=_stages(agg.funnel(group)))
+                for key, group in sorted(agg.group_by(rows, by).items())
+            ]
+        return FunnelRead(stages=_stages(agg.funnel(rows)), total=len(rows), by=by, buckets=buckets)
 
-    def rates(self, user: User) -> RatesRead:
-        metrics = agg.rates(self._rows(user), settings.analytics_min_sample)
+    def rates(
+        self,
+        user: User,
+        *,
+        by: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> RatesRead:
+        rows = self._rows(user, since=since, until=until)
+        buckets: list[RatesBucket] = []
+        if by is not None:
+            buckets = [
+                _rates_bucket(key, agg.rates(group, settings.analytics_min_sample))
+                for key, group in sorted(agg.group_by(rows, by).items())
+            ]
+        metrics = agg.rates(rows, settings.analytics_min_sample)
         return RatesRead(
             response=_metric(metrics["response"]),
             interview=_metric(metrics["interview"]),
             offer=_metric(metrics["offer"]),
             offer_from_interview=_metric(metrics["offer_from_interview"]),
+            by=by,
+            buckets=buckets,
         )
 
-    def rejections(self, user: User, by: str) -> RejectionsRead:
-        report = agg.rejections(self._rows(user), by, settings.analytics_min_sample)
+    def rejections(
+        self,
+        user: User,
+        by: str,
+        *,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> RejectionsRead:
+        report = agg.rejections(
+            self._rows(user, since=since, until=until), by, settings.analytics_min_sample
+        )
         return RejectionsRead(
             total_rejected=report.total_rejected,
             by=by,
@@ -71,7 +112,13 @@ class AnalyticsService:
             reasons=report.reasons,
         )
 
-    def _rows(self, user: User) -> list[agg.ApplicationRow]:
+    def _rows(
+        self,
+        user: User,
+        *,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> list[agg.ApplicationRow]:
         applications = self.applications.list_all_for_user(user.id)
         if not applications:
             return []
@@ -84,6 +131,8 @@ class AnalyticsService:
         )
         rows: list[agg.ApplicationRow] = []
         for application in applications:
+            if not _in_period(application.applied_at, since, until):
+                continue
             events = grouped.get(application.id, [])
             job = jobs.get(application.job_id)
             company = (
@@ -150,3 +199,34 @@ def _metric(data: agg.RateMetric) -> RateMetric:
         value=data.value,
         sufficient_sample=data.sufficient_sample,
     )
+
+
+def _stages(counts: dict[str, int]) -> list[StageCount]:
+    return [StageCount(stage=key, count=counts[key]) for key in FUNNEL_ORDER]
+
+
+def _rates_bucket(key: str, metrics: dict[str, agg.RateMetric]) -> RatesBucket:
+    return RatesBucket(
+        key=key,
+        response=_metric(metrics["response"]),
+        interview=_metric(metrics["interview"]),
+        offer=_metric(metrics["offer"]),
+        offer_from_interview=_metric(metrics["offer_from_interview"]),
+    )
+
+
+def _in_period(applied_at: datetime | None, since: datetime | None, until: datetime | None) -> bool:
+    if since is None and until is None:
+        return True
+    if applied_at is None:
+        return False
+    applied = _aware(applied_at)
+    if since is not None and applied < _aware(since):
+        return False
+    if until is not None and applied > _aware(until):
+        return False
+    return True
+
+
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)

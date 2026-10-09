@@ -84,13 +84,16 @@ def rates(rows: list[ApplicationRow], min_sample: int) -> dict[str, RateMetric]:
     }
 
 
-def rejections(rows: list[ApplicationRow], by: str, min_sample: int) -> RejectionReport:
-    rejected_rows = [row for row in rows if row.status == "Rejected"]
-
+def group_by(rows: list[ApplicationRow], by: str) -> dict[str, list[ApplicationRow]]:
     grouped: dict[str, list[ApplicationRow]] = {}
     for row in rows:
-        grouped.setdefault(_bucket_key(row, by), []).append(row)
-    buckets = [_bucket(key, group, min_sample) for key, group in sorted(grouped.items())]
+        grouped.setdefault(bucket_key(row, by), []).append(row)
+    return grouped
+
+
+def rejections(rows: list[ApplicationRow], by: str, min_sample: int) -> RejectionReport:
+    rejected_rows = [row for row in rows if row.status == "Rejected"]
+    buckets = [_bucket(key, group, min_sample) for key, group in sorted(group_by(rows, by).items())]
 
     stages: dict[str, int] = {}
     for row in rejected_rows:
@@ -114,7 +117,7 @@ def _bucket(key: str, group: list[ApplicationRow], min_sample: int) -> Bucket:
     return Bucket(key, total, rejected, rate, sufficient)
 
 
-def _bucket_key(row: ApplicationRow, by: str) -> str:
+def bucket_key(row: ApplicationRow, by: str) -> str:
     value: str | None
     if by == "resume_version":
         value = row.resume_version_id

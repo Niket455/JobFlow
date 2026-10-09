@@ -18,11 +18,13 @@ def _apply(
     *,
     source: str = "linkedin",
     events: tuple[dict, ...] = (),
+    applied_at: str | None = None,
 ) -> dict:
     job = client.post("/api/v1/jobs", json={"url": url}, headers=headers).json()
-    application = client.post(
-        "/api/v1/applications", json={"job_id": job["id"], "source": source}, headers=headers
-    ).json()
+    payload: dict[str, object] = {"job_id": job["id"], "source": source}
+    if applied_at is not None:
+        payload["applied_at"] = applied_at
+    application = client.post("/api/v1/applications", json=payload, headers=headers).json()
     for event in events:
         client.post(f"/api/v1/applications/{application['id']}/events", json=event, headers=headers)
     return application
@@ -86,3 +88,58 @@ def test_analytics_are_isolated_per_user(client: TestClient) -> None:
     funnel = client.get("/api/v1/analytics/funnel", headers=headers_b).json()
     assert funnel["total"] == 0
     assert all(stage["count"] == 0 for stage in funnel["stages"])
+
+
+def test_funnel_breakdown_by_source(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _apply(
+        client,
+        headers,
+        DE_URL,
+        source="linkedin",
+        events=({"type": "applied"}, {"type": "interview"}),
+    )
+    _apply(client, headers, REMOTE_URL, source="referral", events=({"type": "applied"},))
+
+    funnel = client.get("/api/v1/analytics/funnel?by=source", headers=headers).json()
+
+    assert funnel["by"] == "source"
+    buckets = {bucket["key"]: bucket for bucket in funnel["buckets"]}
+    assert set(buckets) == {"linkedin", "referral"}
+    linkedin = {stage["stage"]: stage["count"] for stage in buckets["linkedin"]["stages"]}
+    assert linkedin["interview"] == 1
+    assert buckets["referral"]["total"] == 1
+
+
+def test_rates_breakdown_by_source(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _apply(
+        client,
+        headers,
+        DE_URL,
+        source="linkedin",
+        events=({"type": "applied"}, {"type": "interview"}),
+    )
+
+    rates = client.get("/api/v1/analytics/rates?by=source", headers=headers).json()
+
+    buckets = {bucket["key"]: bucket for bucket in rates["buckets"]}
+    assert buckets["linkedin"]["interview"]["numerator"] == 1
+
+
+def test_breakdown_rejects_unknown_dimension(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    assert client.get("/api/v1/analytics/funnel?by=banana", headers=headers).status_code == 422
+    assert client.get("/api/v1/analytics/rates?by=banana", headers=headers).status_code == 422
+
+
+def test_period_filter_limits_the_funnel(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _apply(client, headers, DE_URL, applied_at="2026-01-01T00:00:00Z")
+    _apply(client, headers, REMOTE_URL, applied_at="2026-06-01T00:00:00Z")
+
+    assert client.get("/api/v1/analytics/funnel", headers=headers).json()["total"] == 2
+    filtered = client.get(
+        "/api/v1/analytics/funnel?since=2025-12-01&until=2026-03-01", headers=headers
+    ).json()
+    assert filtered["total"] == 1

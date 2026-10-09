@@ -6,9 +6,17 @@ class StageCount(BaseModel):
     count: int
 
 
+class FunnelBucket(BaseModel):
+    key: str
+    total: int
+    stages: list[StageCount]
+
+
 class FunnelRead(BaseModel):
     stages: list[StageCount]
     total: int
+    by: str | None = None
+    buckets: list[FunnelBucket] = []
 
 
 class RateMetric(BaseModel):
@@ -18,11 +26,21 @@ class RateMetric(BaseModel):
     sufficient_sample: bool
 
 
+class RatesBucket(BaseModel):
+    key: str
+    response: RateMetric
+    interview: RateMetric
+    offer: RateMetric
+    offer_from_interview: RateMetric
+
+
 class RatesRead(BaseModel):
     response: RateMetric
     interview: RateMetric
     offer: RateMetric
     offer_from_interview: RateMetric
+    by: str | None = None
+    buckets: list[RatesBucket] = []
 
 
 class RejectionBucket(BaseModel):
