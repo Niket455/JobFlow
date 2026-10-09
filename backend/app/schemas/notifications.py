@@ -24,3 +24,7 @@ class UnreadCount(BaseModel):
 class RefreshResult(BaseModel):
     created: int
     existing: int
+
+
+class DeliverResult(BaseModel):
+    delivered: int

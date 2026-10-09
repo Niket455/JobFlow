@@ -5,11 +5,12 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DbSession, EmailSenderDep
 from app.schemas.notification import TestEmailResult
-from app.schemas.notifications import NotificationRead, RefreshResult, UnreadCount
+from app.schemas.notifications import DeliverResult, NotificationRead, RefreshResult, UnreadCount
 from app.services.notification_center_service import (
     NotificationNotFoundError,
     build_notification_center_service,
 )
+from app.services.notification_delivery_service import build_notification_delivery_service
 from app.services.notification_service import EmailDisabledError, NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -35,6 +36,16 @@ def unread_count(current_user: CurrentUser, db: DbSession) -> UnreadCount:
 @router.post("/refresh", response_model=RefreshResult)
 def refresh_notifications(current_user: CurrentUser, db: DbSession) -> RefreshResult:
     return build_notification_center_service(db).refresh(current_user, now=datetime.now(UTC))
+
+
+@router.post("/deliver", response_model=DeliverResult)
+def deliver_notifications(
+    current_user: CurrentUser, db: DbSession, sender: EmailSenderDep
+) -> DeliverResult:
+    delivered = build_notification_delivery_service(db, sender).deliver_pending(
+        current_user, now=datetime.now(UTC)
+    )
+    return DeliverResult(delivered=delivered)
 
 
 @router.post("/read-all", response_model=UnreadCount)

@@ -11,6 +11,7 @@ from app.services.alert_service import build_alert_service
 from app.services.discovery_service import build_discovery_service
 from app.services.job_refresh_service import JobRefreshService
 from app.services.notification_center_service import build_notification_center_service
+from app.services.notification_delivery_service import build_notification_delivery_service
 from app.workers.celery_app import celery_app
 
 
@@ -61,6 +62,19 @@ def refresh_notifications() -> int:
         service = build_notification_center_service(session)
         return service.refresh_all(
             now=datetime.now(UTC), limit=settings.notification_refresh_batch_size
+        )
+    finally:
+        session.close()
+
+
+@celery_app.task(name="app.workers.tasks.deliver_notification_emails")
+def deliver_notification_emails() -> int:
+    """Email unread notification digests to active users. Returns notifications delivered."""
+    session = SessionLocal()
+    try:
+        service = build_notification_delivery_service(session, build_email_sender())
+        return service.deliver_all(
+            now=datetime.now(UTC), limit=settings.notification_email_batch_size
         )
     finally:
         session.close()

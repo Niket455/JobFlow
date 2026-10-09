@@ -40,6 +40,26 @@ class NotificationRepository(BaseRepository):
         )
         return int(count or 0)
 
+    def list_pending_email(self, user_id: uuid.UUID, *, limit: int = 100) -> list[Notification]:
+        return list(
+            self.db.scalars(
+                select(Notification)
+                .where(
+                    Notification.user_id == user_id,
+                    Notification.read_at.is_(None),
+                    Notification.emailed_at.is_(None),
+                )
+                .order_by(Notification.created_at)
+                .limit(limit)
+            )
+        )
+
+    def mark_emailed(self, ids: list[uuid.UUID], *, now: datetime) -> None:
+        if not ids:
+            return
+        self.db.execute(update(Notification).where(Notification.id.in_(ids)).values(emailed_at=now))
+        self.db.commit()
+
     def create(self, **fields: Any) -> Notification:
         notification = Notification(**fields)
         self.db.add(notification)

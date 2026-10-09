@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     notification_refresh_interval_minutes: int = 60
     notification_refresh_batch_size: int = 200
 
+    # Notification email digest (Celery beat).
+    notification_email_interval_minutes: int = 60
+    notification_email_batch_size: int = 200
+
     # Analytics: minimum segment size before a rate is reported (below it, value is null).
     analytics_min_sample: int = 5
 

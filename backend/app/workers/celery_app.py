@@ -29,5 +29,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.refresh_notifications",
             "schedule": settings.notification_refresh_interval_minutes * 60,
         },
+        "deliver-notification-emails": {
+            "task": "app.workers.tasks.deliver_notification_emails",
+            "schedule": settings.notification_email_interval_minutes * 60,
+        },
     },
 )
