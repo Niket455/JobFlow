@@ -13,17 +13,20 @@ See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 > deterministic match scoring (non-Active jobs never recommended), an event-sourced application
 > tracker with bookmarklet/paste-URL capture, an email notification
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded cover letters with
-> revision lineage, a deterministic ATS analyzer (/100 + parse test) with persisted report snapshots,
+> revision lineage + per-claim decisions, a deterministic ATS analyzer (/100 + parse test) with
+> persisted report snapshots,
 > interview kits + practice rubric
 > feedback
 > + a STAR bank, skill-gap demand analysis (with marginal-coverage gain) + a daily plan (with a
 > learning roadmap) and a weekly review, a Command Center,
 > a contacts CRM + grounded outreach/referral drafts, a follow-ups view with snooze/mark-done + a
 > persisted in-app
-> notification center (auto-refreshed on a Celery-beat schedule), provider-abstracted email
+> notification center (auto-refreshed on a Celery-beat schedule, with email digests),
+> provider-abstracted email
 > classification + calendar suggestions, scheduled
-> (idempotent digest) alerts, and application analytics & rejection intelligence (funnel/rates with
-> per-dimension breakdowns + a period filter, and a rejection-reason breakdown). Frontend and browser
+> (idempotent digest) alerts, application analytics & rejection intelligence (funnel/rates with
+> per-dimension breakdowns, a period filter, a rejection-reason breakdown, and A/B tests), and a
+> transparent, resettable personalized ranking. Frontend and browser
 > extension are not started. See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
@@ -107,7 +110,8 @@ mypy app                     # type check
   `POST /api/v1/tailor-runs/{id}/apply`
 - Cover letters: `POST /api/v1/cover-letters` · `GET /api/v1/cover-letters?job_id=&limit=&offset=` ·
   `GET /api/v1/cover-letters/{id}` · `POST /api/v1/cover-letters/{id}/revise` ·
-  `DELETE /api/v1/cover-letters/{id}`
+  `DELETE /api/v1/cover-letters/{id}` · `POST /api/v1/cover-letters/{id}/decisions` ·
+  `POST /api/v1/cover-letters/{id}/apply`
 - Interview: `POST/GET /api/v1/interview-kits` · `GET /api/v1/interview-kits/{id}` ·
   `POST/GET /api/v1/practice-sessions` · `GET /api/v1/practice-sessions/{id}` ·
   `POST/GET /api/v1/star-stories` · `GET/PUT/DELETE /api/v1/star-stories/{id}` ·
@@ -128,9 +132,11 @@ mypy app                     # type check
   `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`
 - Analytics: `GET /api/v1/analytics/funnel?by=&since=&until=` · `/rates?by=&since=&until=` ·
   `/rejections?by=source|company|role|location|resume_version|month&since=&until=` ·
-  `/rejection-reasons`
+  `/rejection-reasons` · `/ab-test?by=`
+- Ranking: `GET /api/v1/ranking?limit=` · `POST /api/v1/ranking/reset`
 - Notifications: `POST /api/v1/notifications/test` · `GET /api/v1/notifications?unread=` ·
   `GET /api/v1/notifications/unread-count` · `POST /api/v1/notifications/refresh` ·
+  `POST /api/v1/notifications/deliver` ·
   `POST /api/v1/notifications/read-all` · `POST /api/v1/notifications/{id}/read` ·
   `DELETE /api/v1/notifications/{id}`
 

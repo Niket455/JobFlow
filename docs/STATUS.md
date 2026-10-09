@@ -1,10 +1,10 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **Phase 3.2 (bookmarklet capture + non-Active guards)** plus **analytics-depth**,
-> **ATS-persistence**, and a **CRM/insights pass**. Committed checkpoints: Phase 0 + 1.1, increments
-> 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, 2.5, 2.6, the gap-closure
-> pass, and Phase 3.2. This pass adds a weekly review, follow-up snooze / mark-done state, and a
-> rejection reason taxonomy + breakdown.
+> Saved: end of the **delivery/ranking pass** (on top of Phase 3.2, analytics-depth, ATS-persistence,
+> and the CRM/insights pass). Committed checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the
+> ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, 2.5, 2.6, the gap-closure pass, and Phase 3.2. This
+> pass adds notification email delivery, cover-letter per-claim decisions + apply, A/B tests, and a
+> resettable personalized-ranking layer.
 
 ## Where we are
 
@@ -27,14 +27,15 @@
 | Phase 4.2 — Email notifications (transport) | ✅ complete |
 | Phase 5.1 — Resume tailoring (fact-grounding + diff/apply) | ✅ complete |
 | Phase 6.1 — Scheduled alerts (idempotent digest email) | ✅ complete |
-| Phase 6.2 — Application analytics & rejection intelligence (+ funnel/rate breakdowns, period filter, rejection reasons) | ✅ complete |
-| Phase 5.2 — ATS analyzer (/100 + parse test) + persisted report snapshots, cover letters | ✅ complete |
+| Phase 6.2 — Application analytics & rejection intelligence (+ funnel/rate breakdowns, period filter, rejection reasons, A/B tests) | ✅ complete |
+| Phase 5.2 — ATS analyzer (/100 + parse test) + persisted snapshots, cover letters (+ decisions/apply) | ✅ complete |
 | Phase 7.1 — Interview kits, practice rubric feedback, STAR bank | ✅ complete |
 | Phase 7.2 — Skill-gap demand analysis, daily plan (+ weekly review) | ✅ complete |
 | Phase 8.1 — Contacts CRM, outreach/referral drafts | ✅ complete |
 | Phase 8.2 — Email classification + calendar suggestions (provider-abstracted) | ✅ complete |
 | Phase 7.3 — Learning roadmap, Command Center | ✅ complete |
-| Phase 6.3 — Follow-ups (+ snooze/mark-done), notification center | ✅ complete |
+| Phase 6.3 — Follow-ups (+ snooze/mark-done), notification center (+ email delivery) | ✅ complete |
+| Personalized ranking (transparent, resettable) | ✅ complete |
 | Gap-closures — cover-letter lineage/filter/delete, skill-gap coverage gain, notification auto-refresh | ✅ complete |
 | Semantic matching (embeddings / pgvector) | ⏸️ deferred |
 | Frontend (Next.js) & browser extension | ⏸️ not started |
@@ -49,7 +50,7 @@ backend/app/
 │                    Company, Job, JobSource, FetchLog, JobAnalysis, Match, DiscoverySource, Lead,
 │                    Application, ApplicationEvent, AtsReportRecord, FollowUpState, Alert, AlertRun,
 │                    CoverLetter, InterviewKit, PracticeSession, StarStory, Contact, OutreachDraft,
-│                    Integration, EmailMessage, CalendarSuggestion, Notification
+│                    Integration, EmailMessage, CalendarSuggestion, Notification, RankingState
 ├── schemas/         auth, profile, career_goal, deal_breakers, resume, job, job_analysis,
 │                    match, application, notification, notifications, alert, tailor, analytics,
 │                    cover_letter, ats, interview, insights, crm, integrations, command_center, lead
@@ -65,7 +66,8 @@ backend/app/
 │                    skill_gap, skill_gap_service, daily_plan, daily_plan_service,
 │                    learning_roadmap, learning_roadmap_service, command_center,
 │                    contact, outreach, follow_up_service, integration, email, calendar,
-│                    lead, lead_service, discovery_service, weekly_review, weekly_review_service
+│                    lead, lead_service, discovery_service, weekly_review, weekly_review_service,
+│                    notification_delivery_service, ranking_service
 ├── adapters/        base (Fetcher/Adapter), robots (RobotsCache), user_url (HttpxFetcher),
 │                    greenhouse, lever, ashby, smartrecruiters, discovery (Rss/GooglePse),
 │                    jsonld, mapping, http_json,
@@ -76,14 +78,14 @@ backend/app/
 ├── prompts/         resume_extraction, job_analysis, tailor_resume, cover_letter,
 │                    interview_kit, answer_feedback, star_story, outreach, email_classify
 ├── workers/         celery_app + tasks (recheck_jobs, run_alerts, discover_leads,
-│                    refresh_notifications)
+│                    refresh_notifications, deliver_notification_emails)
 └── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, leads,
-                     discovery-sources, matches, applications, notifications, alerts, tailor-runs,
+                     discovery-sources, matches, ranking, applications, notifications, alerts, tailor-runs,
                      cover-letters, interview-kits, practice-sessions, star-stories, insights,
                      command-center, contacts, follow-ups, outreach-drafts, integrations, emails,
                      calendar-suggestions, analytics
-backend/alembic/versions/  0001_initial … 0018_follow_up_states
-backend/tests/             300 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+backend/alembic/versions/  0001_initial … 0020_ranking_states
+backend/tests/             312 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -101,23 +103,24 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Matches | `GET /matches` · `GET /matches/{id}` · `POST /matches/recompute` |
 | Applications | `POST /applications` · `GET /applications` · `GET /applications/{id}` · `POST /applications/{id}/events` · `GET /applications/{id}/events` |
 | Tailoring | `GET /tailor-runs/{id}` · `POST /tailor-runs/{id}/decisions` · `POST /tailor-runs/{id}/apply` |
-| Cover letters | `POST /cover-letters` (generate) · `GET /cover-letters?job_id=&limit=&offset=` · `GET /cover-letters/{id}` · `POST /cover-letters/{id}/revise` · `DELETE /cover-letters/{id}` |
+| Cover letters | `POST /cover-letters` (generate) · `GET /cover-letters?job_id=&limit=&offset=` · `GET /cover-letters/{id}` · `POST /cover-letters/{id}/revise` · `DELETE /cover-letters/{id}` · `POST /cover-letters/{id}/decisions` · `POST /cover-letters/{id}/apply` |
 | Interview | `POST /interview-kits` · `GET /interview-kits?job_id=` · `GET /interview-kits/{id}` · `POST /practice-sessions` · `GET /practice-sessions` · `GET /practice-sessions/{id}` · `POST/GET /star-stories` · `GET/PUT/DELETE /star-stories/{id}` · `POST /star-stories/draft` |
 | Insights | `GET /skill-gap` · `GET /learning-roadmap` · `GET /daily-plan` · `GET /weekly-review` |
 | Command Center | `GET /command-center` |
 | CRM | `POST/GET /contacts` · `GET/PUT/DELETE /contacts/{id}` · `GET /follow-ups` · `POST /follow-ups/{id}/snooze` · `POST /follow-ups/{id}/done` · `POST/GET /outreach-drafts` · `GET /outreach-drafts/{id}` · `POST /outreach-drafts/{id}/send` |
 | Email/Cal | `POST/GET /integrations` · `DELETE /integrations/{id}` · `POST /integrations/{id}/sync` · `GET /emails?status=` · `GET /emails/{id}` · `POST /emails/{id}/suggest\|accept\|dismiss` · `POST/GET /calendar-suggestions` · `POST /calendar-suggestions/{id}/confirm\|dismiss` |
 | Alerts | `POST /alerts` · `GET /alerts` · `GET /alerts/{id}` · `PUT /alerts/{id}` · `DELETE /alerts/{id}` · `POST /alerts/{id}/preview` · `POST /alerts/{id}/run` · `GET /alerts/{id}/runs` · `POST /alerts/unsubscribe/{token}` |
-| Analytics | `GET /analytics/funnel?by=&since=&until=` · `GET /analytics/rates?by=&since=&until=` · `GET /analytics/rejections?by=source\|company\|role\|location\|resume_version\|month&since=&until=` · `GET /analytics/rejection-reasons` |
-| Notifications | `POST /notifications/test` · `GET /notifications?unread=` · `GET /notifications/unread-count` · `POST /notifications/refresh` · `POST /notifications/read-all` · `POST /notifications/{id}/read` · `DELETE /notifications/{id}` |
+| Analytics | `GET /analytics/funnel?by=&since=&until=` · `GET /analytics/rates?by=&since=&until=` · `GET /analytics/rejections?by=source\|company\|role\|location\|resume_version\|month&since=&until=` · `GET /analytics/rejection-reasons` · `GET /analytics/ab-test?by=` |
+| Notifications | `POST /notifications/test` · `GET /notifications?unread=` · `GET /notifications/unread-count` · `POST /notifications/refresh` · `POST /notifications/deliver` · `POST /notifications/read-all` · `POST /notifications/{id}/read` · `DELETE /notifications/{id}` |
+| Ranking | `GET /ranking?limit=` · `POST /ranking/reset` |
 | System | `GET /health` · `GET /ready` |
 
 ## Verified (last run)
 
-- **300/300 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0018` apply cleanly to real Postgres (`alembic current` = `0018_follow_up_states`);
-  2.6 added `discovery_sources` + `leads`, the 5.2 pass added `ats_reports`, and this pass adds
-  `follow_up_states`.
+- **312/312 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0020` apply cleanly to real Postgres (`alembic current` = `0020_ranking_states`);
+  2.6 added `discovery_sources` + `leads`, 5.2 added `ats_reports`, the CRM pass added `follow_up_states`,
+  and this pass adds `notifications.emailed_at` + `ranking_states`.
 - Gap-closures: cover-letter `revise` links a new version via `parent_letter_id` (same job/resume), and
   `GET /cover-letters` filters by `job_id` with `limit`/`offset` plus a `DELETE`; skill-gap
   `SkillDemand` now carries `coverage_gain` (a missing skill's marginal coverage — its `jobs` count;
@@ -139,6 +142,13 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
   `POST /follow-ups/{id}/snooze` / `done` (persisted `follow_up_states`; snooze hides, done resets the
   clock), and `GET /analytics/rejection-reasons` (catalog + per-reason counts + uncategorized) —
   covered by API tests.
+- Delivery/ranking: `POST /notifications/deliver` emails unread notifications once (adds
+  `notifications.emailed_at`; a `deliver_notification_emails` beat task does it for all users).
+  Cover letters gain per-claim `decisions` + an `apply` guard (409 while any claim is pending; rejected
+  claims are stripped from the composed body). `GET /analytics/ab-test?by=` compares variants by
+  response rate (min-sample suppressed, winner when ≥2 clear it). `GET /ranking` adds a transparent,
+  resettable company-response boost over the base score, and `POST /ranking/reset` clears it — all
+  covered by tests.
 - Leads & discovery: RSS/Atom parsing and Google-PSE mapping unit-tested with `httpx.MockTransport`
   (incl. a PSE cache hit making one outbound call and the daily quota guard short-circuiting), plus E2E
   tests for the `New→Captured` / `New→Queued` capture transitions, per-user isolation, and the
@@ -200,9 +210,7 @@ celery -A app.workers.celery_app.celery_app beat
 
 1. **Enable Google-PSE** — provide `CAREERPILOT_GOOGLE_PSE_API_KEY` + `CAREERPILOT_GOOGLE_PSE_CX` and
    flip `CAREERPILOT_ENABLE_GOOGLE_PSE=true`; subscribe users to feeds/queries via `/discovery-sources`.
-2. **Next batch** — notification email delivery. Larger: A/B tests + a resettable personalized-ranking
-   layer.
-3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
+2. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
    sub-score; resume-specific matching; frontend & browser extension.
 
 ## Open follow-ups
