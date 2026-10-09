@@ -35,6 +35,7 @@ def test_requires_auth(client: TestClient) -> None:
     assert client.get("/api/v1/analytics/rates").status_code == 401
     assert client.get("/api/v1/analytics/rejections").status_code == 401
     assert client.get("/api/v1/analytics/rejection-reasons").status_code == 401
+    assert client.get("/api/v1/analytics/ab-test").status_code == 401
 
 
 def test_funnel_and_rates(client: TestClient) -> None:
@@ -163,3 +164,24 @@ def test_rejection_reasons_breakdown(client: TestClient) -> None:
     counts = {item["reason"]: item["count"] for item in report["reasons"]}
     assert counts["no_response"] == 1
     assert report["uncategorized"] == 1
+
+
+def test_ab_test_suppresses_below_min_sample(client: TestClient) -> None:
+    headers = _headers(client, USER_A)
+    _apply(
+        client,
+        headers,
+        DE_URL,
+        source="linkedin",
+        events=({"type": "applied"}, {"type": "interview"}),
+    )
+    _apply(client, headers, REMOTE_URL, source="referral", events=({"type": "applied"},))
+
+    report = client.get("/api/v1/analytics/ab-test?by=source", headers=headers).json()
+
+    assert report["by"] == "source"
+    assert report["min_sample"] == 5
+    variants = {variant["key"]: variant for variant in report["variants"]}
+    assert variants["linkedin"]["applied"] == 1
+    assert variants["linkedin"]["response_rate"] is None  # below min sample
+    assert report["winner"] is None

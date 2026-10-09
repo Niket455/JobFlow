@@ -25,6 +25,7 @@ from app.api.v1 import (
     outreach_drafts,
     practice,
     profile,
+    ranking,
     resumes,
     star_stories,
     tailor_runs,
@@ -41,6 +42,7 @@ api_router.include_router(jobs.router)
 api_router.include_router(leads.router)
 api_router.include_router(discovery_sources.router)
 api_router.include_router(matches.router)
+api_router.include_router(ranking.router)
 api_router.include_router(applications.router)
 api_router.include_router(notifications.router)
 api_router.include_router(alerts.router)

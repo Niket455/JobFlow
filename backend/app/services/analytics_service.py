@@ -10,6 +10,8 @@ from app.repositories.application_repository import ApplicationRepository
 from app.repositories.company_repository import CompanyRepository
 from app.repositories.job_repository import JobRepository
 from app.schemas.analytics import (
+    AbTestRead,
+    AbVariant,
     FunnelBucket,
     FunnelRead,
     RateMetric,
@@ -124,6 +126,24 @@ class AnalyticsService:
             catalog=list(agg.REJECTION_REASON_CATALOG),
             reasons=[RejectionReasonCount(reason=reason, count=count) for reason, count in ordered],
             uncategorized=uncategorized,
+        )
+
+    def ab_test(self, user: User, by: str) -> AbTestRead:
+        report = agg.ab_test(self._rows(user), by, settings.analytics_min_sample)
+        return AbTestRead(
+            by=by,
+            min_sample=settings.analytics_min_sample,
+            variants=[
+                AbVariant(
+                    key=variant.key,
+                    applied=variant.applied,
+                    responded=variant.responded,
+                    response_rate=variant.response_rate,
+                    sufficient_sample=variant.sufficient_sample,
+                )
+                for variant in report.variants
+            ],
+            winner=report.winner,
         )
 
     def _rows(

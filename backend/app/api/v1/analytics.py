@@ -3,7 +3,13 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DbSession
-from app.schemas.analytics import FunnelRead, RatesRead, RejectionReasonsRead, RejectionsRead
+from app.schemas.analytics import (
+    AbTestRead,
+    FunnelRead,
+    RatesRead,
+    RejectionReasonsRead,
+    RejectionsRead,
+)
 from app.services.analytics_service import BREAKDOWN_DIMENSIONS, build_analytics_service
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -56,3 +62,11 @@ def rejections(
 @router.get("/rejection-reasons", response_model=RejectionReasonsRead)
 def rejection_reasons(current_user: CurrentUser, db: DbSession) -> RejectionReasonsRead:
     return build_analytics_service(db).rejection_reasons(current_user)
+
+
+@router.get("/ab-test", response_model=AbTestRead)
+def ab_test(
+    current_user: CurrentUser, db: DbSession, by: str = Query("resume_version")
+) -> AbTestRead:
+    _check_dimension(by)
+    return build_analytics_service(db).ab_test(current_user, by)

@@ -158,3 +158,41 @@ def bucket_key(row: ApplicationRow, by: str) -> str:
             "month": row.month,
         }.get(by)
     return value or "unknown"
+
+
+@dataclass(frozen=True)
+class AbVariant:
+    key: str
+    applied: int
+    responded: int
+    response_rate: float | None
+    sufficient_sample: bool
+
+
+@dataclass(frozen=True)
+class AbTestReport:
+    variants: list[AbVariant]
+    winner: str | None
+
+
+def ab_test(rows: list[ApplicationRow], by: str, min_sample: int) -> AbTestReport:
+    """Compare variants of a dimension by response rate, suppressing below min-sample."""
+    variants: list[AbVariant] = []
+    for key, group in sorted(group_by(rows, by).items()):
+        applied = [row for row in group if stage_rank(row.event_types) >= 1]
+        responded = sum(
+            1 for row in applied if row.status == "Rejected" or stage_rank(row.event_types) >= 2
+        )
+        sufficient = len(applied) >= min_sample
+        variants.append(
+            AbVariant(
+                key=key,
+                applied=len(applied),
+                responded=responded,
+                response_rate=round(responded / len(applied), 4) if sufficient else None,
+                sufficient_sample=sufficient,
+            )
+        )
+    eligible = [v for v in variants if v.sufficient_sample and v.response_rate is not None]
+    winner = max(eligible, key=lambda v: v.response_rate or 0.0).key if len(eligible) >= 2 else None
+    return AbTestReport(variants=variants, winner=winner)

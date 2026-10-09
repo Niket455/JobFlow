@@ -69,3 +69,18 @@ class RejectionReasonsRead(BaseModel):
     catalog: list[str] = []
     reasons: list[RejectionReasonCount] = []
     uncategorized: int = 0
+
+
+class AbVariant(BaseModel):
+    key: str
+    applied: int
+    responded: int
+    response_rate: float | None = None
+    sufficient_sample: bool
+
+
+class AbTestRead(BaseModel):
+    by: str
+    min_sample: int
+    variants: list[AbVariant] = []
+    winner: str | None = None

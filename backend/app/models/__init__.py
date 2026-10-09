@@ -25,6 +25,7 @@ from app.models.notification import Notification
 from app.models.outreach_draft import OutreachDraft
 from app.models.practice_session import PracticeSession
 from app.models.profile import Profile
+from app.models.ranking_state import RankingState
 from app.models.resume_version import ResumeVersion
 from app.models.star_story import StarStory
 from app.models.tailor_run import TailorRun
@@ -58,6 +59,7 @@ __all__ = [
     "OutreachDraft",
     "PracticeSession",
     "Profile",
+    "RankingState",
     "ResumeVersion",
     "StarStory",
     "TailorRun",
