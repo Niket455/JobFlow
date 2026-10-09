@@ -1,10 +1,10 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **Phase 3.2 (bookmarklet capture + non-Active guards)** plus an **analytics-depth
-> pass**. Committed checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2,
-> 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, 2.5, 2.6, the gap-closure pass, and Phase 3.2. This pass adds
-> per-dimension funnel/rate breakdowns and a `since`/`until` period filter to analytics (funnel, rates,
-> rejections).
+> Saved: end of **Phase 3.2 (bookmarklet capture + non-Active guards)** plus **analytics-depth** and
+> **ATS-persistence** passes. Committed checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the
+> ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, 2.5, 2.6, the gap-closure pass, and Phase 3.2. This
+> pass persists ATS report snapshots (with history endpoints) and adds per-dimension analytics
+> breakdowns + a `since`/`until` period filter.
 
 ## Where we are
 
@@ -28,7 +28,7 @@
 | Phase 5.1 — Resume tailoring (fact-grounding + diff/apply) | ✅ complete |
 | Phase 6.1 — Scheduled alerts (idempotent digest email) | ✅ complete |
 | Phase 6.2 — Application analytics & rejection intelligence (+ funnel/rate breakdowns, period filter) | ✅ complete |
-| Phase 5.2 — ATS analyzer (/100 + parse test), cover letters | ✅ complete |
+| Phase 5.2 — ATS analyzer (/100 + parse test) + persisted report snapshots, cover letters | ✅ complete |
 | Phase 7.1 — Interview kits, practice rubric feedback, STAR bank | ✅ complete |
 | Phase 7.2 — Skill-gap demand analysis, daily plan | ✅ complete |
 | Phase 8.1 — Contacts CRM, outreach/referral drafts | ✅ complete |
@@ -47,8 +47,8 @@ backend/app/
 │                    media_types, redis_cache
 ├── models/          User, Profile, CareerGoal, DealBreakers, ResumeVersion, LLMUsage,
 │                    Company, Job, JobSource, FetchLog, JobAnalysis, Match, DiscoverySource, Lead,
-│                    Application, ApplicationEvent, Alert, AlertRun, TailorRun, CoverLetter,
-│                    InterviewKit, PracticeSession, StarStory, Contact, OutreachDraft,
+│                    Application, ApplicationEvent, AtsReportRecord, Alert, AlertRun, TailorRun,
+│                    CoverLetter, InterviewKit, PracticeSession, StarStory, Contact, OutreachDraft,
 │                    Integration, EmailMessage, CalendarSuggestion, Notification
 ├── schemas/         auth, profile, career_goal, deal_breakers, resume, job, job_analysis,
 │                    match, application, notification, notifications, alert, tailor, analytics,
@@ -60,7 +60,7 @@ backend/app/
 │                    application_status, application, application_timeline, notification,
 │                    notification_center, notification_center_service, encryption,
 │                    alert_schedule, alert, tailor_grounding, tailor,
-│                    application_analytics, analytics, ats_analyzer, cover_letter,
+│                    application_analytics, analytics, ats_analyzer, ats_service, cover_letter,
 │                    answer_signals, interview_kit, practice, star_story,
 │                    skill_gap, skill_gap_service, daily_plan, daily_plan_service,
 │                    learning_roadmap, learning_roadmap_service, command_center,
@@ -82,8 +82,8 @@ backend/app/
                      cover-letters, interview-kits, practice-sessions, star-stories, insights,
                      command-center, contacts, follow-ups, outreach-drafts, integrations, emails,
                      calendar-suggestions, analytics
-backend/alembic/versions/  0001_initial … 0016_leads
-backend/tests/             274 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+backend/alembic/versions/  0001_initial … 0017_ats_reports
+backend/tests/             295 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -94,7 +94,8 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 |---|---|
 | Auth | `POST /auth/register` · `/login` · `/refresh` · `GET /auth/me` |
 | Profile | `GET/PUT /profile`, `GET/PUT /career-goals`, `GET/PUT /deal-breakers` |
-| Resumes | `POST /resumes` (upload) · `GET /resumes` · `GET /resumes/{id}` · `GET /resumes/{id}/export?format=pdf\|docx` · `POST /resumes/{id}/tailor` · `GET /resumes/{id}/ats-report?job_id=` |
+| Resumes | `POST /resumes` (upload) · `GET /resumes` · `GET /resumes/{id}` · `GET /resumes/{id}/export?format=pdf\|docx` · `POST /resumes/{id}/tailor` · `GET /resumes/{id}/ats-report?job_id=` · `POST /resumes/{id}/ats-report` (persist a snapshot) |
+| ATS reports | `GET /ats-reports?resume_version_id=&job_id=&limit=&offset=` · `GET /ats-reports/{id}` |
 | Jobs | `POST /jobs` (paste URL — ATS URLs use their public APIs) · `POST /jobs/capture` (create/update a job + start an application) · `GET /jobs?status=` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
 | Leads | `POST/GET /discovery-sources` · `DELETE /discovery-sources/{id}` · `POST /discovery-sources/{id}/run` · `GET /leads?status=` · `GET /leads/{id}` · `POST /leads/{id}/capture` · `POST /leads/{id}/dismiss` |
 | Matches | `GET /matches` · `GET /matches/{id}` · `POST /matches/recompute` |
@@ -113,10 +114,10 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **289/289 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0016` apply cleanly to real Postgres (`alembic current` = `0016_leads`);
-  2.6 adds `discovery_sources` + `leads` (2.5 added no tables — the SmartRecruiters adapter reuses
-  `job_sources`/`fetch_log`). The gap-closure pass added no migration.
+- **295/295 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0017` apply cleanly to real Postgres (`alembic current` = `0017_ats_reports`);
+  2.6 added `discovery_sources` + `leads` and this pass adds `ats_reports` (2.5 and the gap-closure /
+  analytics / Phase 3.2 passes added no tables).
 - Gap-closures: cover-letter `revise` links a new version via `parent_letter_id` (same job/resume), and
   `GET /cover-letters` filters by `job_id` with `limit`/`offset` plus a `DELETE`; skill-gap
   `SkillDemand` now carries `coverage_gain` (a missing skill's marginal coverage — its `jobs` count;
@@ -130,6 +131,10 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 - Analytics depth: `funnel`/`rates`/`rejections` accept `by=<source|company|role|location|
   resume_version|month>` (per-bucket breakdowns; unknown → 422) and a `since`/`until` applied-date
   filter — covered by API tests (breakdown buckets + period filtering).
+- ATS persistence: `POST /resumes/{id}/ats-report` stores a snapshot (`ats_reports`), and
+  `GET /ats-reports` (+ `?resume_version_id=`/`?job_id=`) / `GET /ats-reports/{id}` read the history;
+  the existing `GET /resumes/{id}/ats-report` still computes on demand without persisting — covered by
+  API tests (persist/list/get, filters, per-user isolation).
 - Leads & discovery: RSS/Atom parsing and Google-PSE mapping unit-tested with `httpx.MockTransport`
   (incl. a PSE cache hit making one outbound call and the daily quota guard short-circuiting), plus E2E
   tests for the `New→Captured` / `New→Queued` capture transitions, per-user isolation, and the
@@ -191,9 +196,8 @@ celery -A app.workers.celery_app.celery_app beat
 
 1. **Enable Google-PSE** — provide `CAREERPILOT_GOOGLE_PSE_API_KEY` + `CAREERPILOT_GOOGLE_PSE_CX` and
    flip `CAREERPILOT_ENABLE_GOOGLE_PSE=true`; subscribe users to feeds/queries via `/discovery-sources`.
-2. **Next batch** — ATS report persistence; daily-plan weekly review; follow-up snooze/mark; rejection
-   reason taxonomy; notification email delivery. Larger: A/B tests + a resettable personalized-ranking
-   layer.
+2. **Next batch** — daily-plan weekly review; follow-up snooze/mark; rejection reason taxonomy;
+   notification email delivery. Larger: A/B tests + a resettable personalized-ranking layer.
 3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
    sub-score; resume-specific matching; frontend & browser extension.
 

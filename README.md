@@ -13,7 +13,8 @@ See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 > deterministic match scoring (non-Active jobs never recommended), an event-sourced application
 > tracker with bookmarklet/paste-URL capture, an email notification
 > layer, resume tailoring with deterministic fact-grounding + diff/apply, grounded cover letters with
-> revision lineage, a deterministic ATS analyzer (/100 + parse test), interview kits + practice rubric
+> revision lineage, a deterministic ATS analyzer (/100 + parse test) with persisted report snapshots,
+> interview kits + practice rubric
 > feedback
 > + a STAR bank, skill-gap demand analysis (with marginal-coverage gain) + a daily plan (with a
 > learning roadmap), a Command Center,
@@ -88,7 +89,9 @@ mypy app                     # type check
 - Profile: `GET/PUT /api/v1/profile` · `/career-goals` · `/deal-breakers`
 - Resumes: `POST /api/v1/resumes` · `GET /api/v1/resumes` · `GET /api/v1/resumes/{id}` ·
   `GET /api/v1/resumes/{id}/export?format=pdf|docx` · `POST /api/v1/resumes/{id}/tailor` ·
-  `GET /api/v1/resumes/{id}/ats-report?job_id=`
+  `GET /api/v1/resumes/{id}/ats-report?job_id=` · `POST /api/v1/resumes/{id}/ats-report` (persist)
+- ATS reports: `GET /api/v1/ats-reports?resume_version_id=&job_id=&limit=&offset=` ·
+  `GET /api/v1/ats-reports/{id}`
 - Jobs: `POST /api/v1/jobs` (paste a URL; Greenhouse/Lever/Ashby/SmartRecruiters use their public
   APIs) · `POST /api/v1/jobs/capture` (paste a URL; create/update the job + start an application) ·
   `GET /api/v1/jobs?status=` · `GET /api/v1/jobs/{id}` ·
