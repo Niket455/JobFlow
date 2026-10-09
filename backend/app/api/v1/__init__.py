@@ -12,6 +12,7 @@ from app.api.v1 import (
     cover_letters,
     deal_breakers,
     emails,
+    follow_ups,
     insights,
     integrations,
     interview_kits,
@@ -45,6 +46,7 @@ api_router.include_router(star_stories.router)
 api_router.include_router(insights.router)
 api_router.include_router(command_center.router)
 api_router.include_router(contacts.router)
+api_router.include_router(follow_ups.router)
 api_router.include_router(outreach_drafts.router)
 api_router.include_router(integrations.router)
 api_router.include_router(emails.router)

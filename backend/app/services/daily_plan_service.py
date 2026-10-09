@@ -1,18 +1,15 @@
-import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.application_event import ApplicationEvent
-from app.models.job import Job
 from app.models.user import User
 from app.repositories.application_event_repository import ApplicationEventRepository
 from app.repositories.application_repository import ApplicationRepository
 from app.repositories.job_repository import JobRepository
 from app.repositories.match_repository import MatchRepository
 from app.schemas.insights import DailyPlan
-from app.services.application_status import StatusEvent, derive
+from app.services.application_timeline import job_title, load_timeline
 from app.services.daily_plan import ApplicationCandidate, MatchCandidate, build_daily_plan
 from app.services.learning_roadmap_service import (
     LearningRoadmapService,
@@ -59,20 +56,20 @@ class DailyPlanService:
 
         matches = [
             MatchCandidate(
-                job_id=match.job_id, title=_title(titles, match.job_id), overall=match.overall
+                job_id=match.job_id, title=job_title(titles, match.job_id), overall=match.overall
             )
             for match in eligible
             if match.job_id not in applied_job_ids
         ]
         candidates = [
             ApplicationCandidate(
-                application_id=application.id,
-                job_id=application.job_id,
-                title=_title(titles, application.job_id),
-                status=_status(grouped.get(application.id, [])),
-                days_since_update=_days(application.updated_at, now),
+                application_id=entry.application_id,
+                job_id=entry.job_id,
+                title=entry.title,
+                status=entry.status,
+                days_since_update=entry.days_since_update,
             )
-            for application in applications
+            for entry in load_timeline(applications, grouped, titles, now=now)
         ]
         skills = [item.skill for item in roadmap.items[:3]]
         items = build_daily_plan(
@@ -103,24 +100,3 @@ def build_daily_plan_service(db: Session) -> DailyPlanService:
         follow_up_days=settings.daily_plan_follow_up_days,
         max_items=settings.daily_plan_max_items,
     )
-
-
-def _status(events: list[ApplicationEvent]) -> str:
-    status_events = [
-        StatusEvent(type=event.type, occurred_at=event.occurred_at, created_at=event.created_at)
-        for event in events
-    ]
-    return derive(status_events)[0]
-
-
-def _days(updated_at: datetime | None, now: datetime) -> int:
-    if updated_at is None:
-        return 0
-    if updated_at.tzinfo is None:
-        updated_at = updated_at.replace(tzinfo=UTC)
-    return max(0, (now - updated_at).days)
-
-
-def _title(titles: dict[uuid.UUID, Job], job_id: uuid.UUID) -> str:
-    job = titles.get(job_id)
-    return job.title if job is not None else "this role"

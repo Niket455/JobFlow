@@ -17,6 +17,7 @@ from app.models.job_analysis import JobAnalysis
 from app.models.job_source import JobSource
 from app.models.llm_usage import LLMUsage
 from app.models.match import Match
+from app.models.notification import Notification
 from app.models.outreach_draft import OutreachDraft
 from app.models.practice_session import PracticeSession
 from app.models.profile import Profile
@@ -45,6 +46,7 @@ __all__ = [
     "JobSource",
     "LLMUsage",
     "Match",
+    "Notification",
     "OutreachDraft",
     "PracticeSession",
     "Profile",

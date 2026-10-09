@@ -107,3 +107,17 @@ class OutreachDraftSummary(BaseModel):
     subject: str
     status: str
     created_at: datetime
+
+
+class FollowUpItem(BaseModel):
+    application_id: uuid.UUID
+    job_id: uuid.UUID
+    title: str
+    status: str
+    days_since_update: int
+    action: str
+
+
+class FollowUpList(BaseModel):
+    items: list[FollowUpItem] = []
+    generated_from: dict[str, int] = {}
