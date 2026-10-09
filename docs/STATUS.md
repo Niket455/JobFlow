@@ -1,8 +1,10 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **increment 2.5 (SmartRecruiters adapter)**. Committed checkpoints: Phase 0 + 1.1,
-> increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, and 6.3. This
-> checkpoint adds the SmartRecruiters source adapter, completing the ATS URL-adapter set.
+> Saved: end of **increment 2.6 (leads & discovery)**. Committed checkpoints: Phase 0 + 1.1,
+> increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, and 2.5. This
+> checkpoint adds the leads (New→Queued→Captured→Dismissed) lifecycle, per-user RSS/Atom + Google-PSE
+> discovery sources with a Celery-beat poll, and the Redis-backed quota guard + 24 h query cache —
+> completing Phase 2 (Ingestion & Discovery).
 
 ## Where we are
 
@@ -18,6 +20,7 @@
 | Phase 2.3 — LLM job analysis | ✅ complete |
 | Phase 2.4 — Greenhouse/Lever/Ashby ATS source adapters | ✅ complete |
 | Phase 2.5 — SmartRecruiters ATS source adapter | ✅ complete |
+| Phase 2.6 — Leads lifecycle + RSS/Atom & Google-PSE discovery sources | ✅ complete |
 | Phase 3.1 — Deterministic match scoring | ✅ complete |
 | Phase 4.1 — Application tracker (event-sourced) | ✅ complete |
 | Phase 4.2 — Email notifications (transport) | ✅ complete |
@@ -38,15 +41,16 @@
 
 ```
 backend/app/
-├── core/            config, db, logging, middleware, security, crypto, storage, prompts, media_types
+├── core/            config, db, logging, middleware, security, crypto, storage, prompts,
+│                    media_types, redis_cache
 ├── models/          User, Profile, CareerGoal, DealBreakers, ResumeVersion, LLMUsage,
-│                    Company, Job, JobSource, FetchLog, JobAnalysis, Match,
+│                    Company, Job, JobSource, FetchLog, JobAnalysis, Match, DiscoverySource, Lead,
 │                    Application, ApplicationEvent, Alert, AlertRun, TailorRun, CoverLetter,
 │                    InterviewKit, PracticeSession, StarStory, Contact, OutreachDraft,
 │                    Integration, EmailMessage, CalendarSuggestion, Notification
 ├── schemas/         auth, profile, career_goal, deal_breakers, resume, job, job_analysis,
 │                    match, application, notification, notifications, alert, tailor, analytics,
-│                    cover_letter, ats, interview, insights, crm, integrations, command_center
+│                    cover_letter, ats, interview, insights, crm, integrations, command_center, lead
 ├── repositories/    tenancy-scoped repos for every model above
 ├── services/        auth, profile, career_goal, deal_breakers, resume_parser, resume_renderer,
 │                    resume, url_canonicalizer, job_normalizer, dedupe, job_ingestion,
@@ -58,23 +62,25 @@ backend/app/
 │                    answer_signals, interview_kit, practice, star_story,
 │                    skill_gap, skill_gap_service, daily_plan, daily_plan_service,
 │                    learning_roadmap, learning_roadmap_service, command_center,
-│                    contact, outreach, follow_up_service, integration, email, calendar
+│                    contact, outreach, follow_up_service, integration, email, calendar,
+│                    lead, lead_service, discovery_service
 ├── adapters/        base (Fetcher/Adapter), robots (RobotsCache), user_url (HttpxFetcher),
-│                    greenhouse, lever, ashby, smartrecruiters, jsonld, mapping, http_json,
-│                    dispatch (DispatchFetcher), factory (build_fetcher)
+│                    greenhouse, lever, ashby, smartrecruiters, discovery (Rss/GooglePse),
+│                    jsonld, mapping, http_json,
+│                    dispatch (DispatchFetcher), factory (build_fetcher, build_discovery_runtime)
 ├── integrations/    base (InboxProvider), mock_inbox, gmail (flagged off), factory
 ├── gateway/         LLM gateway (providers: mock, openai) — complete + structured output
 ├── email/           base (EmailSender), console, recording, smtp, factory
 ├── prompts/         resume_extraction, job_analysis, tailor_resume, cover_letter,
 │                    interview_kit, answer_feedback, star_story, outreach, email_classify
-├── workers/         celery_app + tasks (recheck_jobs, run_alerts)
-└── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, matches,
-                     applications, notifications, alerts, tailor-runs, cover-letters,
-                     interview-kits, practice-sessions, star-stories, insights, command-center,
-                     contacts, follow-ups, outreach-drafts, integrations, emails,
+├── workers/         celery_app + tasks (recheck_jobs, run_alerts, discover_leads)
+└── api/v1/          auth, profile, career-goals, deal-breakers, resumes, jobs, leads,
+                     discovery-sources, matches, applications, notifications, alerts, tailor-runs,
+                     cover-letters, interview-kits, practice-sessions, star-stories, insights,
+                     command-center, contacts, follow-ups, outreach-drafts, integrations, emails,
                      calendar-suggestions, analytics
-backend/alembic/versions/  0001_initial … 0015_notifications
-backend/tests/             246 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
+backend/alembic/versions/  0001_initial … 0016_leads
+backend/tests/             267 tests (unit + API, offline — fake fetcher / mock LLM / recording email)
 infra/docker-compose.yml   Postgres+pgvector, Redis, adobe/s3mock
 docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.md, STATUS.md
 ```
@@ -87,6 +93,7 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | Profile | `GET/PUT /profile`, `GET/PUT /career-goals`, `GET/PUT /deal-breakers` |
 | Resumes | `POST /resumes` (upload) · `GET /resumes` · `GET /resumes/{id}` · `GET /resumes/{id}/export?format=pdf\|docx` · `POST /resumes/{id}/tailor` · `GET /resumes/{id}/ats-report?job_id=` |
 | Jobs | `POST /jobs` (paste URL — Greenhouse/Lever/Ashby/SmartRecruiters URLs use their public APIs) · `GET /jobs` · `GET /jobs/{id}` · `GET /jobs/{id}/sources` · `POST /jobs/{id}/refresh` · `POST /jobs/{id}/analyze` · `GET /jobs/{id}/analysis` · `POST /jobs/{id}/match` |
+| Leads | `POST/GET /discovery-sources` · `DELETE /discovery-sources/{id}` · `POST /discovery-sources/{id}/run` · `GET /leads?status=` · `GET /leads/{id}` · `POST /leads/{id}/capture` · `POST /leads/{id}/dismiss` |
 | Matches | `GET /matches` · `GET /matches/{id}` · `POST /matches/recompute` |
 | Applications | `POST /applications` · `GET /applications` · `GET /applications/{id}` · `POST /applications/{id}/events` · `GET /applications/{id}/events` |
 | Tailoring | `GET /tailor-runs/{id}` · `POST /tailor-runs/{id}/decisions` · `POST /tailor-runs/{id}/apply` |
@@ -103,12 +110,20 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 
 ## Verified (last run)
 
-- **246/246 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
-- Migrations `0001` → `0015` apply cleanly to real Postgres (`alembic current` = `0015_notifications`);
-  2.5 added no tables (the SmartRecruiters adapter reuses `job_sources`/`fetch_log`).
+- **267/267 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- Migrations `0001` → `0016` apply cleanly to real Postgres (`alembic current` = `0016_leads`);
+  2.6 adds `discovery_sources` + `leads` (2.5 added no tables — the SmartRecruiters adapter reuses
+  `job_sources`/`fetch_log`).
+- Leads & discovery: RSS/Atom parsing and Google-PSE mapping unit-tested with `httpx.MockTransport`
+  (incl. a PSE cache hit making one outbound call and the daily quota guard short-circuiting), plus E2E
+  tests for the `New→Captured` / `New→Queued` capture transitions, per-user isolation, and the
+  `discover_leads` beat task registration.
 - SmartRecruiters adapter: unit-tested with `httpx.MockTransport` (URL matching, title/company/
   location/description mapping, entity unescape) plus an E2E ingestion test asserting
   `job_sources.adapter == "smartrecruiters"`.
+- Live smoke (2.6): `/leads` and `/discovery-sources` are registered and reject unauthenticated calls
+  (401); `POST /discovery-sources` with `kind="google_pse"` returns 403 while the flag is off; creating,
+  listing and deleting an RSS source works (201 → 1 → 204).
 - Live smoke (6.3): `POST /notifications/refresh` is idempotent (`created=0` on re-run), and
   `GET /notifications`, `/unread-count`, `/read-all`, and `GET /follow-ups` return the expected shape
   and reject unauthenticated calls; the derivation is covered by pure unit + API tests.
@@ -158,10 +173,11 @@ celery -A app.workers.celery_app.celery_app beat
 
 ## Next steps (agreed order)
 
-1. **Leads + discovery** — a `leads` table with the New→Queued→Captured→Dismissed lifecycle,
-   `/leads` + `/leads/{id}/capture`, an RSS/Atom discovery source, and a Google-PSE source
-   (feature-flagged off) with a quota guard + 24 h cache.
-2. Deferred: real Gmail OAuth + Outlook; Google Calendar write; Celery-beat notification auto-refresh /
+1. **Enable Google-PSE** — provide `CAREERPILOT_GOOGLE_PSE_API_KEY` + `CAREERPILOT_GOOGLE_PSE_CX` and
+   flip `CAREERPILOT_ENABLE_GOOGLE_PSE=true`; subscribe users to feeds/queries via `/discovery-sources`.
+2. **Phase 3 remainder** — bookmarklet / paste-URL capture into an application; non-Active jobs never
+   recommended.
+3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; Celery-beat notification auto-refresh /
    email delivery; embeddings/pgvector semantic match sub-score; resume-specific matching; frontend &
    browser extension.
 
