@@ -121,7 +121,31 @@ ASHBY_JSON = {
     ],
 }
 
-ATS_RESPONSES: dict[str, dict] = {GH_API: GH_JSON, LEVER_API: LEVER_JSON, ASHBY_API: ASHBY_JSON}
+SR_URL = "https://jobs.smartrecruiters.com/smartrecruiters/884352026-seo-manager"
+SR_API = "https://api.smartrecruiters.com/v1/companies/smartrecruiters/postings/884352026"
+SR_JSON = {
+    "id": "884352026",
+    "name": "SEO Manager",
+    "company": {"identifier": "smartrecruiters", "name": "SmartRecruiters Inc"},
+    "location": {"city": "San Francisco", "region": "CA", "country": "us", "remote": True},
+    "jobAd": {
+        "sections": {
+            "companyDescription": {
+                "title": "Company Description",
+                "text": "We make hiring easy &amp; fast.",
+            },
+            "jobDescription": {"title": "Job Description", "text": "Own organic search."},
+            "qualifications": {"title": "Qualifications", "text": "3-5 years of SEO."},
+        }
+    },
+}
+
+ATS_RESPONSES: dict[str, dict] = {
+    GH_API: GH_JSON,
+    LEVER_API: LEVER_JSON,
+    ASHBY_API: ASHBY_JSON,
+    SR_API: SR_JSON,
+}
 
 
 def ats_handler(request: httpx.Request) -> httpx.Response:

@@ -1,6 +1,6 @@
 import httpx
 import pytest
-from fake_fetcher import ASHBY_URL, GH_URL, LEVER_URL, ats_client
+from fake_fetcher import ASHBY_URL, GH_URL, LEVER_URL, SR_URL, ats_client
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -34,6 +34,7 @@ def _ingest(client: TestClient, headers: dict[str, str], url: str):
         (GH_URL, "greenhouse", "Vault Designer"),
         (LEVER_URL, "lever", "Backend Engineer"),
         (ASHBY_URL, "ashby", "Product Manager"),
+        (SR_URL, "smartrecruiters", "SEO Manager"),
     ],
 )
 def test_ats_ingest_records_adapter(

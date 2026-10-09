@@ -6,6 +6,7 @@ from app.adapters.dispatch import DispatchFetcher
 from app.adapters.greenhouse import GreenhouseAdapter
 from app.adapters.lever import LeverAdapter
 from app.adapters.robots import RobotsCache
+from app.adapters.smartrecruiters import SmartRecruitersAdapter
 from app.adapters.user_url import HttpxFetcher
 from app.core.config import settings
 
@@ -31,5 +32,6 @@ def build_fetcher(client: httpx.Client | None = None) -> Fetcher:
         GreenhouseAdapter(client),
         LeverAdapter(client),
         AshbyAdapter(client),
+        SmartRecruitersAdapter(client),
     ]
     return DispatchFetcher(adapters, html)

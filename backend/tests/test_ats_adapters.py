@@ -2,6 +2,7 @@ from fake_fetcher import (
     ASHBY_URL,
     GH_URL,
     LEVER_URL,
+    SR_URL,
     ats_client,
 )
 
@@ -10,6 +11,7 @@ from app.adapters.base import Adapter, FetchResult
 from app.adapters.dispatch import DispatchFetcher
 from app.adapters.greenhouse import GreenhouseAdapter
 from app.adapters.lever import LeverAdapter
+from app.adapters.smartrecruiters import SmartRecruitersAdapter
 from app.services.job_normalizer import normalize
 
 
@@ -75,8 +77,30 @@ def test_ashby_adapter_selects_matching_posting() -> None:
 
 def test_adapters_ignore_unrelated_hosts() -> None:
     client = ats_client()
-    for adapter in (GreenhouseAdapter(client), LeverAdapter(client), AshbyAdapter(client)):
+    adapters = (
+        GreenhouseAdapter(client),
+        LeverAdapter(client),
+        AshbyAdapter(client),
+        SmartRecruitersAdapter(client),
+    )
+    for adapter in adapters:
         assert not adapter.matches("https://jobs.example.com/data-engineer")
+
+
+def test_smartrecruiters_adapter_maps_job() -> None:
+    adapter = SmartRecruitersAdapter(ats_client())
+    assert adapter.matches(SR_URL)
+    assert not adapter.matches("https://jobs.smartrecruiters.com/smartrecruiters")
+
+    result = adapter.fetch(SR_URL)
+    assert result.adapter == "smartrecruiters"
+    job = normalize(result)
+    assert job.title == "SEO Manager"
+    assert job.company_name == "SmartRecruiters Inc"
+    assert job.location == "San Francisco, CA, us (Remote)"
+    assert "Own organic search." in job.description
+    assert "hiring easy & fast." in job.description  # entity unescaped
+    assert job.external_id == "884352026"
 
 
 def test_dispatch_uses_adapter_when_matched() -> None:
