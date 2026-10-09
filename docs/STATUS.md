@@ -1,11 +1,10 @@
 # CareerPilot — Progress Checkpoint
 
-> Saved: end of **Phase 3.2 (bookmarklet capture + non-Active guards)**. Committed checkpoints: Phase 0
-> + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2, 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, 2.5,
-> 2.6, and the gap-closure pass. This checkpoint adds the bookmarklet / paste-URL capture that
-> creates/updates a job and starts an application (idempotent; Saved by default, Applied when
-> `applied_at` is given), and the guards that keep non-Active jobs out of every recommendation surface
-> — completing Phase 3 (Matching, Lifecycle & Bookmarklet Apply).
+> Saved: end of **Phase 3.2 (bookmarklet capture + non-Active guards)** plus an **analytics-depth
+> pass**. Committed checkpoints: Phase 0 + 1.1, increments 1.2 → 4.2, 5.1 → 6.2, the ATS adapters + 5.2,
+> 7.1, 7.2, 7.3, 8.1, 8.2, 6.3, 2.5, 2.6, the gap-closure pass, and Phase 3.2. This pass adds
+> per-dimension funnel/rate breakdowns and a `since`/`until` period filter to analytics (funnel, rates,
+> rejections).
 
 ## Where we are
 
@@ -28,7 +27,7 @@
 | Phase 4.2 — Email notifications (transport) | ✅ complete |
 | Phase 5.1 — Resume tailoring (fact-grounding + diff/apply) | ✅ complete |
 | Phase 6.1 — Scheduled alerts (idempotent digest email) | ✅ complete |
-| Phase 6.2 — Application analytics & rejection intelligence | ✅ complete |
+| Phase 6.2 — Application analytics & rejection intelligence (+ funnel/rate breakdowns, period filter) | ✅ complete |
 | Phase 5.2 — ATS analyzer (/100 + parse test), cover letters | ✅ complete |
 | Phase 7.1 — Interview kits, practice rubric feedback, STAR bank | ✅ complete |
 | Phase 7.2 — Skill-gap demand analysis, daily plan | ✅ complete |
@@ -108,13 +107,13 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
 | CRM | `POST/GET /contacts` · `GET/PUT/DELETE /contacts/{id}` · `GET /follow-ups` · `POST/GET /outreach-drafts` · `GET /outreach-drafts/{id}` · `POST /outreach-drafts/{id}/send` |
 | Email/Cal | `POST/GET /integrations` · `DELETE /integrations/{id}` · `POST /integrations/{id}/sync` · `GET /emails?status=` · `GET /emails/{id}` · `POST /emails/{id}/suggest\|accept\|dismiss` · `POST/GET /calendar-suggestions` · `POST /calendar-suggestions/{id}/confirm\|dismiss` |
 | Alerts | `POST /alerts` · `GET /alerts` · `GET /alerts/{id}` · `PUT /alerts/{id}` · `DELETE /alerts/{id}` · `POST /alerts/{id}/preview` · `POST /alerts/{id}/run` · `GET /alerts/{id}/runs` · `POST /alerts/unsubscribe/{token}` |
-| Analytics | `GET /analytics/funnel` · `GET /analytics/rates` · `GET /analytics/rejections?by=source\|company\|role\|location\|resume_version\|month` |
+| Analytics | `GET /analytics/funnel?by=&since=&until=` · `GET /analytics/rates?by=&since=&until=` · `GET /analytics/rejections?by=source\|company\|role\|location\|resume_version\|month&since=&until=` |
 | Notifications | `POST /notifications/test` · `GET /notifications?unread=` · `GET /notifications/unread-count` · `POST /notifications/refresh` · `POST /notifications/read-all` · `POST /notifications/{id}/read` · `DELETE /notifications/{id}` |
 | System | `GET /health` · `GET /ready` |
 
 ## Verified (last run)
 
-- **285/285 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
+- **289/289 tests pass** · **ruff check** clean · **ruff format** clean · **mypy --strict** clean.
 - Migrations `0001` → `0016` apply cleanly to real Postgres (`alembic current` = `0016_leads`);
   2.6 adds `discovery_sources` + `leads` (2.5 added no tables — the SmartRecruiters adapter reuses
   `job_sources`/`fetch_log`). The gap-closure pass added no migration.
@@ -128,6 +127,9 @@ docs/                      ARCHITECTURE.md, DATA-RETENTION.md, DATA-PROCESSING.m
   fetch, disabled-flag 403, per-user isolation, and a still-working `POST /applications` 409.
   `GET /matches` and the skill-gap report now exclude non-Active jobs (a job flipped to `Expired` is
   hidden from the matches list while `GET /matches/{id}` still returns it, and drops out of skill-gap).
+- Analytics depth: `funnel`/`rates`/`rejections` accept `by=<source|company|role|location|
+  resume_version|month>` (per-bucket breakdowns; unknown → 422) and a `since`/`until` applied-date
+  filter — covered by API tests (breakdown buckets + period filtering).
 - Leads & discovery: RSS/Atom parsing and Google-PSE mapping unit-tested with `httpx.MockTransport`
   (incl. a PSE cache hit making one outbound call and the daily quota guard short-circuiting), plus E2E
   tests for the `New→Captured` / `New→Queued` capture transitions, per-user isolation, and the
@@ -189,9 +191,9 @@ celery -A app.workers.celery_app.celery_app beat
 
 1. **Enable Google-PSE** — provide `CAREERPILOT_GOOGLE_PSE_API_KEY` + `CAREERPILOT_GOOGLE_PSE_CX` and
    flip `CAREERPILOT_ENABLE_GOOGLE_PSE=true`; subscribe users to feeds/queries via `/discovery-sources`.
-2. **Next batch** — analytics depth (per-source/resume breakdowns + period filter); ATS report
-   persistence; daily-plan weekly review; follow-up snooze/mark; rejection reason taxonomy;
-   notification email delivery. Larger: A/B tests + a resettable personalized-ranking layer.
+2. **Next batch** — ATS report persistence; daily-plan weekly review; follow-up snooze/mark; rejection
+   reason taxonomy; notification email delivery. Larger: A/B tests + a resettable personalized-ranking
+   layer.
 3. Deferred: real Gmail OAuth + Outlook; Google Calendar write; embeddings/pgvector semantic match
    sub-score; resume-specific matching; frontend & browser extension.
 

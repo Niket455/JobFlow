@@ -20,7 +20,8 @@ See the architecture plan: `~/.commandcode/plans/jobflow-architecture.md`.
 > a contacts CRM + grounded outreach/referral drafts, a follow-ups view + a persisted in-app
 > notification center (auto-refreshed on a Celery-beat schedule), provider-abstracted email
 > classification + calendar suggestions, scheduled
-> (idempotent digest) alerts, and application analytics & rejection intelligence. Frontend and browser
+> (idempotent digest) alerts, and application analytics & rejection intelligence (funnel/rates with
+> per-dimension breakdowns + a period filter). Frontend and browser
 > extension are not started. See `docs/STATUS.md` for the checkpoint.
 
 ## Prerequisites
@@ -119,7 +120,8 @@ mypy app                     # type check
 - Alerts: `POST/GET /api/v1/alerts` · `GET/PUT/DELETE /api/v1/alerts/{id}` ·
   `POST /api/v1/alerts/{id}/preview` · `POST /api/v1/alerts/{id}/run` ·
   `GET /api/v1/alerts/{id}/runs` · `POST /api/v1/alerts/unsubscribe/{token}`
-- Analytics: `GET /api/v1/analytics/funnel` · `/rates` · `/rejections?by=source|company|role|location|resume_version|month`
+- Analytics: `GET /api/v1/analytics/funnel?by=&since=&until=` · `/rates?by=&since=&until=` ·
+  `/rejections?by=source|company|role|location|resume_version|month&since=&until=`
 - Notifications: `POST /api/v1/notifications/test` · `GET /api/v1/notifications?unread=` ·
   `GET /api/v1/notifications/unread-count` · `POST /api/v1/notifications/refresh` ·
   `POST /api/v1/notifications/read-all` · `POST /api/v1/notifications/{id}/read` ·
